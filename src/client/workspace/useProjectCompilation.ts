@@ -100,8 +100,11 @@ export function useProjectCompilation({
   const [compilingMainFiles, setCompilingMainFiles] = useState<ReadonlySet<string>>(() => new Set());
   const [cancellingMainFiles, setCancellingMainFiles] = useState<ReadonlySet<string>>(() => new Set());
   const [editorNotice, setEditorNotice] = useState("");
+  const [displaySelection, setDisplaySelection] = useState({ projectId, mainFile });
   const mainFileRef = useRef(mainFile);
   const pdfMainFileRef = useRef("");
+  const previousSelection = useRef({ projectId, mainFile });
+  const allowCompletedAfterSwitch = useRef(true);
   const latestRequest = useRef<AbortController | null>(null);
   // The initial retained-PDF lookup is authoritative when a workspace opens.
   // Keep state-replay lookups separate so an old Yjs completed state cannot
@@ -162,6 +165,17 @@ export function useProjectCompilation({
 
   useEffect(() => {
     latestRequest.current?.abort();
+    latestRequest.current = null;
+    const previous = previousSelection.current;
+    const sameProject = previous.projectId === projectId;
+    const switchedMainFile = sameProject && Boolean(previous.mainFile)
+      && Boolean(mainFile) && previous.mainFile !== mainFile;
+    previousSelection.current = { projectId, mainFile };
+    setDisplaySelection({ projectId, mainFile });
+    if (!sameProject) {
+      authoritativeCompileRun.current = null;
+      pdfMainFileRef.current = "";
+    }
     if (!mainFile) {
       // Project metadata and the selected root document are loaded separately.
       // Do not query the server with an implicit root while the real root is
@@ -176,6 +190,8 @@ export function useProjectCompilation({
       setCompileOutcome(null);
       setArtifacts([]);
       setArtifactPreview(null);
+      setArtifactLoading(false);
+      setEditorNotice("");
       authoritativeCompileRun.current = null;
       callbacks.current.onPdfChanged();
       return;
@@ -183,13 +199,31 @@ export function useProjectCompilation({
     if (authoritativeCompileRun.current?.mainFile !== mainFile) {
       authoritativeCompileRun.current = null;
     }
-    const controller = new AbortController();
-    latestRequest.current = controller;
-    setPdfLoading(true);
     setCompileLog("");
     setCompileDiagnostics(null);
     setCompileOutcome(null);
-    const retainPdf = Boolean(pdfUrl && mainFile && pdfMainFileRef.current === mainFile);
+    if (switchedMainFile) {
+      // A newly selected root starts with an empty preview, even if that root
+      // has an older published PDF. A fresh compile may repopulate it.
+      allowCompletedAfterSwitch.current = false;
+      pdfMainFileRef.current = "";
+      setPdfUrl("");
+      setPdfCompiledAt(null);
+      setPdfLoadingMode("full");
+      setPdfLoading(false);
+      setArtifacts([]);
+      setArtifactPreview(null);
+      setArtifactLoading(false);
+      setEditorNotice("");
+      callbacks.current.onPdfChanged();
+      callbacks.current.onPreviewTab("pdf");
+      return;
+    }
+    allowCompletedAfterSwitch.current = true;
+    const controller = new AbortController();
+    latestRequest.current = controller;
+    setPdfLoading(true);
+    const retainPdf = Boolean(sameProject && pdfUrl && mainFile && pdfMainFileRef.current === mainFile);
     if (!retainPdf) {
       setPdfUrl("");
       setPdfCompiledAt(null);
@@ -312,8 +346,16 @@ export function useProjectCompilation({
   }, [mainFile, sharedState?.mainFile, sharedState?.status]);
 
   useEffect(() => {
+    if (sharedState?.mainFile === mainFile
+      && (sharedState.status === "queued" || sharedState.status === "running")) {
+      allowCompletedAfterSwitch.current = true;
+    }
+  }, [mainFile, sharedState?.mainFile, sharedState?.status, sharedState?.runId]);
+
+  useEffect(() => {
     if (!sharedState || sharedState.mainFile !== mainFile
       || (sharedState.status !== "succeeded" && sharedState.status !== "failed")) return;
+    if (!allowCompletedAfterSwitch.current) return;
     let cancelled = false;
     completedStateRequest.current?.abort();
     artifactPreviewRequest.current?.abort();
@@ -360,6 +402,7 @@ export function useProjectCompilation({
     if (!requestedMainFile
       || compileRequests.current.has(requestedMainFile)
       || (sharedState?.mainFile === requestedMainFile && (sharedState.status === "queued" || sharedState.status === "running"))) return;
+    allowCompletedAfterSwitch.current = true;
     setCompilingMainFiles((current) => new Set([...current, requestedMainFile]));
     callbacks.current.onCompileStart();
     setEditorNotice("");
@@ -368,7 +411,7 @@ export function useProjectCompilation({
     setCompileLog("");
     setCompileDiagnostics(null);
     setCompileOutcome(null);
-    callbacks.current.onPreviewTab(pdfUrl ? "pdf" : "log");
+    callbacks.current.onPreviewTab(displaySelection.projectId === projectId && displaySelection.mainFile === mainFile && pdfUrl ? "pdf" : "log");
     const controller = new AbortController();
     compileRequests.current.set(requestedMainFile, controller);
     try {
@@ -547,17 +590,18 @@ export function useProjectCompilation({
     }
   };
 
+  const selectionVisible = displaySelection.projectId === projectId && displaySelection.mainFile === mainFile;
   return {
-    pdfUrl,
-    pdfCompiledAt,
+    pdfUrl: selectionVisible ? pdfUrl : "",
+    pdfCompiledAt: selectionVisible ? pdfCompiledAt : null,
     pdfLoadingMode,
-    pdfLoading,
-    compileLog,
-    compileDiagnostics,
-    compileOutcome,
-    artifacts,
-    artifactPreview,
-    artifactLoading,
+    pdfLoading: selectionVisible ? pdfLoading : false,
+    compileLog: selectionVisible ? compileLog : "",
+    compileDiagnostics: selectionVisible ? compileDiagnostics : null,
+    compileOutcome: selectionVisible ? compileOutcome : null,
+    artifacts: selectionVisible ? artifacts : [],
+    artifactPreview: selectionVisible ? artifactPreview : null,
+    artifactLoading: selectionVisible && artifactLoading,
     editorNotice,
     localCompiling: compilingMainFiles.has(mainFile),
     cancelling: cancellingMainFiles.has(mainFile),
