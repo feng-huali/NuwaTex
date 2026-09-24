@@ -26,7 +26,7 @@ logs/
 .env.*
 !.env.example
 texlite.config.json
-texlite.config.json.bak
+texlite.config.json.bak*
 /data/
 /data-postgres/
 /data-back/
