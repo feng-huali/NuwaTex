@@ -1,6 +1,6 @@
 import { lazy, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { api } from "../api";
+import { api, uploadProjectZip } from "../api";
 import { ConfirmDialog, Modal } from "../Dialog";
 import type { Project, ProjectInvitation, ProjectListPagination, ProjectTag, SiteConfig, TagColor, User } from "../types";
 import i18n from "../i18n";
@@ -105,6 +105,8 @@ export function Dashboard({ site, user, initialData, onDataChange, onUser, onOpe
   const importInput = useRef<HTMLInputElement>(null);
   const tagFilterSidebar = useRef<HTMLElement>(null);
   const [importing, setImporting] = useState(false);
+  const [importPhase, setImportPhase] = useState<"uploading" | "processing" | null>(null);
+  const [importPercent, setImportPercent] = useState<number | null>(null);
   const [query, setQuery] = useState("");
   const [tagFilter, setTagFilter] = useState("");
   const [tagFiltersOpen, setTagFiltersOpen] = useState(false);
@@ -207,18 +209,24 @@ export function Dashboard({ site, user, initialData, onDataChange, onUser, onOpe
     if (!importFile) return;
     const maxSize = site.maxUploadSizeMB;
     if (importFile.size > maxSize * 1024 * 1024) return setImportError(t("errors.fileTooLarge", { size: maxSize }));
-    setImporting(true); setImportError("");
+    setImporting(true); setImportError(""); setImportPhase("uploading"); setImportPercent(0);
     const data = new FormData(); data.append("file", importFile);
     try {
-      const { project } = await api<{ project: Project }>(`/api/projects/import?name=${encodeURIComponent(importName.trim())}`, { method: "POST", body: data });
+      const { project } = await uploadProjectZip<{ project: Project }>(
+        `/api/projects/import?name=${encodeURIComponent(importName.trim())}`,
+        data,
+        setImportPercent,
+        () => { setImportPhase("processing"); setImportPercent(null); }
+      );
       const nextProjects = showArchived || page !== 1 ? projects : [project, ...projects].slice(0, pagination.pageSize);
       const nextPagination = showArchived ? pagination : { ...pagination, total: pagination.total + 1, totalPages: Math.ceil((pagination.total + 1) / pagination.pageSize) };
       setProjects(nextProjects); setPagination(nextPagination); if (!showArchived) onDataChange(nextProjects, tags, nextPagination);
       setImportOpen(false); setImportFile(null); setImportName(""); onOpenProject(project.id);
     } catch (e) { setImportError(errorMessage(e)); }
-    finally { setImporting(false); }
+    finally { setImporting(false); setImportPhase(null); setImportPercent(null); }
   };
   const selectImportFile = (file: File | null) => {
+    if (importing) return;
     if (file && !file.name.toLocaleLowerCase().endsWith(".zip")) {
       setImportError(t("errors.zipOnly")); return;
     }
@@ -522,7 +530,43 @@ export function Dashboard({ site, user, initialData, onDataChange, onUser, onOpe
       <Modal open={createOpen} title={t("projects.new")} description={t("projects.newDescription")} onOpenChange={(open) => { if (!open && creating) return; setCreateOpen(open); if (!open) setCreateError(""); }} footer={<><button disabled={creating} onClick={() => setCreateOpen(false)}>{t("common.cancel")}</button><button className="primary" disabled={creating || !newProjectName.trim()} aria-busy={creating} onClick={() => void createProject()}>{creating && <LoaderCircle className="spin" size={14} />}{creating ? t("common.loading") : t("common.create")}</button></>}>
         <>{createError && <p className="error dialog-error">{createError}</p>}<label className="form-field">{t("projects.name")}<input autoFocus value={newProjectName} onChange={(event) => { setNewProjectName(event.target.value); setCreateError(""); }} onKeyDown={(event) => { if (event.key === "Enter") void createProject(); }} /></label></>
       </Modal>
-      <Modal open={importOpen} title={t("projects.upload")} description={t("projects.uploadDescription", { size: site.maxUploadSizeMB })} onOpenChange={(open) => { setImportOpen(open); if (!open) setImportError(""); }} footer={<><button onClick={() => { setImportOpen(false); setImportError(""); }}>{t("common.cancel")}</button><button className="primary" disabled={!importFile || importing} onClick={() => void importProject()}>{importing ? t("projects.importing") : t("projects.import")}</button></>}><div className="form-stack">{importError && <p className="error import-error">{importError}</p>}<div className={`upload-picker${importFile ? " has-file" : ""}`} onDragOver={(event) => { event.preventDefault(); event.dataTransfer.dropEffect = "copy"; }} onDrop={(event) => { event.preventDefault(); selectImportFile(event.dataTransfer.files[0] ?? null); }}><input ref={importInput} className="sr-only" type="file" accept=".zip,application/zip" onChange={(event) => selectImportFile(event.target.files?.[0] ?? null)} /><FileArchive size={34} /><div className="upload-picker-copy"><strong>{importFile?.name ?? t("projects.chooseZip")}</strong><span>{importFile ? t("projects.selectedFileSize", { size: formatFileSize(importFile.size) }) : t("projects.dropZip")}</span></div><button type="button" onClick={() => importInput.current?.click()}><Upload size={15} />{t("projects.browse")}</button>{importFile && <button className="upload-clear" type="button" title={t("projects.clearFile")} aria-label={t("projects.clearFile")} onClick={() => { selectImportFile(null); if (importInput.current) importInput.current.value = ""; }}><X size={14} /></button>}</div><label className="form-field">{t("projects.name")}<input value={importName} onChange={(event) => setImportName(event.target.value)} /></label></div></Modal>
+      <Modal
+        open={importOpen}
+        title={t("projects.upload")}
+        description={t("projects.uploadDescription", { size: site.maxUploadSizeMB })}
+        onOpenChange={(open) => { if (importing) return; setImportOpen(open); if (!open) setImportError(""); }}
+        footer={<>
+          <button disabled={importing} onClick={() => { setImportOpen(false); setImportError(""); }}>{t("common.cancel")}</button>
+          <button className="primary" disabled={!importFile || importing} onClick={() => void importProject()}>
+            {importPhase === "uploading" ? t("projects.uploading") : importPhase === "processing" ? t("projects.processing") : t("projects.import")}
+          </button>
+        </>}
+      >
+        <div className="form-stack">
+          {importError && <p className="error import-error">{importError}</p>}
+          <div className={`upload-picker${importFile ? " has-file" : ""}`}
+            onDragOver={(event) => { event.preventDefault(); event.dataTransfer.dropEffect = "copy"; }}
+            onDrop={(event) => { event.preventDefault(); selectImportFile(event.dataTransfer.files[0] ?? null); }}>
+            <input ref={importInput} className="sr-only" type="file" accept=".zip,application/zip" disabled={importing}
+              onChange={(event) => selectImportFile(event.target.files?.[0] ?? null)} />
+            <FileArchive size={34} />
+            <div className="upload-picker-copy"><strong>{importFile?.name ?? t("projects.chooseZip")}</strong>
+              <span>{importFile ? t("projects.selectedFileSize", { size: formatFileSize(importFile.size) }) : t("projects.dropZip")}</span></div>
+            <button type="button" disabled={importing} onClick={() => importInput.current?.click()}><Upload size={15} />{t("projects.browse")}</button>
+            {importFile && !importing && <button className="upload-clear" type="button" title={t("projects.clearFile")}
+              aria-label={t("projects.clearFile")} onClick={() => { selectImportFile(null); if (importInput.current) importInput.current.value = ""; }}><X size={14} /></button>}
+          </div>
+          <label className="form-field">{t("projects.name")}<input value={importName} disabled={importing} onChange={(event) => setImportName(event.target.value)} /></label>
+          {importPhase && <div className="project-import-progress" role="status" aria-live="polite">
+            <span>{importPhase === "uploading" ? t("projects.uploading") : t("projects.processing")}</span>
+            {importPhase === "uploading" && importPercent !== null
+              ? <progress max={100} value={importPercent} aria-label={t("projects.uploading")} />
+              : <progress aria-label={t("projects.processing")} />}
+            {importPhase === "uploading" && importPercent !== null && <small>{importPercent}%</small>}
+            {importPhase === "processing" && <small className="import-progress-hint">{t("projects.processingHint")}</small>}
+          </div>}
+        </div>
+      </Modal>
       {tagManagerOpen && <LazyModal title={t("tags.manage")} onClose={() => setTagManagerOpen(false)}><TagManagementDialog open onOpenChange={setTagManagerOpen} onTagCreated={addManagedTag} onTagUpdated={updateManagedTag} onTagDeleted={deleteManagedTag} /></LazyModal>}
       {projectIconTarget && <LazyModal title={t("projectIcons.title")} onClose={() => setProjectIconTarget(null)}><ProjectIconPickerDialog project={projectIconTarget} open onOpenChange={(open) => { if (!open) setProjectIconTarget(null); }} onSave={saveProjectIcon} /></LazyModal>}
       <Modal open={Boolean(tagProject)} title={t("tags.assignTitle", { project: tagProject?.name ?? "" })} description={t("tags.assignDescription")} onOpenChange={(open) => { if (!open) { setTagProject(null); setTagAssignmentError(""); } }} footer={<button onClick={() => { setTagProject(null); setTagAssignmentError(""); }}>{t("common.close")}</button>}><div className="tag-assignment-list">{tagAssignmentError && <p className="error dialog-error">{tagAssignmentError}</p>}{tags.map((tag) => <label key={tag.id}><input type="checkbox" checked={Boolean(tagProject?.tags.some((item) => item.id === tag.id))} onChange={() => void toggleProjectTag(tag)} /><TagDot color={tag.color} /><span>{tag.name}</span></label>)}{tags.length === 0 && <p className="muted">{t("tags.empty")}</p>}</div></Modal>

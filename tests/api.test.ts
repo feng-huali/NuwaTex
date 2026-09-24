@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { api, ApiError } from "../src/client/api";
+import { api, ApiError, uploadProjectZip } from "../src/client/api";
 
 describe("client API session handling", () => {
   afterEach(() => {
@@ -44,5 +44,35 @@ describe("client API session handling", () => {
 
     await expect(api("/api/projects/project-1"))
       .rejects.toMatchObject({ name: "Error", status: 200, code: "INVALID_RESPONSE" });
+  });
+
+  it("reports ZIP upload progress separately from server-side processing", async () => {
+    class UploadRequest {
+      upload = { onprogress: (_event: ProgressEvent) => undefined, onload: () => undefined };
+      onload = () => undefined;
+      onerror = () => undefined;
+      onabort = () => undefined;
+      responseType = "";
+      withCredentials = false;
+      status = 201;
+      response = { project: { id: "project-1" } };
+      open = vi.fn();
+      setRequestHeader = vi.fn();
+      send = vi.fn(() => {
+        this.upload.onprogress({ lengthComputable: true, loaded: 5, total: 10 } as ProgressEvent);
+        this.upload.onprogress({ lengthComputable: true, loaded: 10, total: 10 } as ProgressEvent);
+        this.upload.onload();
+        this.onload();
+      });
+    }
+    vi.stubGlobal("XMLHttpRequest", UploadRequest);
+    const phases: string[] = [];
+    const result = await uploadProjectZip<{ project: { id: string } }>(
+      "/api/projects/import", new FormData(),
+      (percent) => phases.push(`upload:${percent}`),
+      () => phases.push("processing")
+    );
+    expect(phases).toEqual(["upload:50", "processing"]);
+    expect(result.project.id).toBe("project-1");
   });
 });

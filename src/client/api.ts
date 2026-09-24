@@ -83,6 +83,45 @@ export async function api<T>(url: string, options: ApiRequestInit = {}): Promise
   return body as T;
 }
 
+/** XHR is used only for ZIP imports because fetch does not expose upload progress. */
+export function uploadProjectZip<T>(url: string, data: FormData, onProgress: (percent: number | null) => void, onProcessing: () => void): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const request = new XMLHttpRequest();
+    request.open("POST", appPath(url));
+    request.responseType = "json";
+    request.withCredentials = true;
+    request.setRequestHeader("Accept-Language", i18n.resolvedLanguage?.startsWith("zh") ? "zh" : "en");
+    request.setRequestHeader(TEXLITE_REQUEST_HEADER, "1");
+    let processing = false;
+    const markProcessing = () => {
+      if (processing) return;
+      processing = true;
+      onProcessing();
+    };
+    request.upload.onprogress = (event) => {
+      if (processing) return;
+      if (event.lengthComputable && event.total > 0 && event.loaded >= event.total) {
+        markProcessing();
+      } else {
+        onProgress(event.lengthComputable && event.total > 0 ? Math.min(99, Math.floor(event.loaded / event.total * 100)) : null);
+      }
+    };
+    request.upload.onload = markProcessing;
+    request.onerror = () => reject(new ApiError(i18n.t("network.requestFailed"), 0, "NETWORK_ERROR"));
+    request.onabort = () => reject(new DOMException("Upload aborted", "AbortError"));
+    request.onload = () => {
+      const body: unknown = request.response;
+      if (request.status === 401) window.dispatchEvent(new Event("texlite:session-expired"));
+      if (request.status < 200 || request.status >= 300) {
+        reject(new ApiError(localizedResponseError(body, request.status), request.status, responseErrorCode(body)));
+      } else if (!body || typeof body !== "object") {
+        reject(new ApiError(i18n.t("network.invalidResponse"), request.status, "INVALID_RESPONSE"));
+      } else resolve(body as T);
+    };
+    request.send(data);
+  });
+}
+
 export function localizedResponseError(body: unknown, status: number, fallbackKey = "errors.request"): string {
   const serverMessage = typeof body === "object" && body !== null && "error" in body && typeof body.error === "string"
     ? body.error : "";
