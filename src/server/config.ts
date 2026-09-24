@@ -43,6 +43,9 @@ export const CONFIG_DEFAULTS = {
   // The default listener is local-only, so a local reverse proxy is safe to
   // trust for client-address and protocol forwarding headers.
   trustedProxyIps: ["127.0.0.1", "::1"] as string[],
+  // An empty allow-list keeps the normal first-party-only session policy.
+  // Supplying origins opts into cross-site iframe login cookies.
+  allowedIframeOrigins: [] as string[],
   dataDir: defaultDataDirectory(),
   clientDir: packageClientDirectory(),
   postgresSslMode: "disable" as PostgresSslMode,
@@ -90,6 +93,8 @@ export interface Config {
   basePath: string;
   /** Direct reverse-proxy IPs/CIDRs allowed to supply forwarding headers. */
   trustedProxyIps?: string[];
+  /** Exact HTTPS origins permitted to embed TexLite. */
+  allowedIframeOrigins?: string[];
   dataDir: string;
   /** PostgreSQL is the only supported application database. */
   database: PostgresDatabaseConfig;
@@ -193,6 +198,7 @@ export function loadConfig(configPathOverride?: string): Config {
   );
   const basePath = resolveBasePath(fileConfig);
   const trustedProxyIps = resolveTrustedProxyIps(fileConfig);
+  const allowedIframeOrigins = resolveAllowedIframeOrigins(fileConfig);
   const oauth = resolveNuwaxOAuth(fileConfig);
   const ai = resolveAi(fileConfig);
 
@@ -204,6 +210,7 @@ export function loadConfig(configPathOverride?: string): Config {
     port: integerSetting("server.port", process.env.TEXLITE_PORT, fileConfig.server?.port, CONFIG_DEFAULTS.port, CONFIG_LIMITS.port),
     basePath,
     trustedProxyIps,
+    allowedIframeOrigins,
     dataDir,
     database,
     projectsDir: path.join(dataDir, "projects"),
@@ -259,6 +266,12 @@ export function validateConfig(config: Config): void {
     optionalString(config.oauth.baseUrl, "OAuth.baseURL", { min: 1, max: 2_048 });
     validateUrl("OAuth.redirectUri", config.oauth.redirectUri);
     validateUrl("OAuth.baseURL", config.oauth.baseUrl);
+    if (config.allowedIframeOrigins?.length && new URL(config.oauth.redirectUri).protocol !== "https:") {
+      throw configurationError(
+        "OAuth.redirectUri",
+        "must use HTTPS when server.allowedIframeOrigins is configured because iframe sign-in requires Secure cookies"
+      );
+    }
   }
   if (config.ai) {
     optionalString(config.ai.baseUrl, "ai.baseURL", { min: 1, max: 2_048 });
@@ -278,6 +291,7 @@ export function validateConfig(config: Config): void {
   if (normalizeBasePath(config.basePath) !== config.basePath) {
     throw configurationError("server.basePath", "must be / or a normalized URL path such as /texlite or /tools/texlite");
   }
+  optionalAllowedIframeOrigins(config.allowedIframeOrigins, "server.allowedIframeOrigins");
   validateInteger("sessionDays", config.sessionDays, CONFIG_LIMITS.sessionDays);
   validateInteger("latex.compileTimeoutSeconds", config.compileTimeoutMs / 1000, CONFIG_LIMITS.compileTimeoutSeconds);
   validateInteger("latex.maxCompileJobs", config.maxCompileJobs, CONFIG_LIMITS.maxCompileJobs);
@@ -305,7 +319,13 @@ interface FileConfig {
   siteName?: string;
   adminEmail?: string;
   sessionDays?: number;
-  server?: { host?: string; port?: number; basePath?: string; trustedProxyIps?: string[] };
+  server?: {
+    host?: string;
+    port?: number;
+    basePath?: string;
+    trustedProxyIps?: string[];
+    allowedIframeOrigins?: string[];
+  };
   storage?: { dataDir?: string };
   database?: {
     driver?: string;
@@ -370,6 +390,12 @@ function resolveTrustedProxyIps(fileConfig: FileConfig): string[] {
   return configured === undefined
     ? [...CONFIG_DEFAULTS.trustedProxyIps]
     : configured.map((address) => address.trim());
+}
+
+function resolveAllowedIframeOrigins(fileConfig: FileConfig): string[] {
+  const configured = fileConfig.server?.allowedIframeOrigins;
+  if (configured === undefined) return [...CONFIG_DEFAULTS.allowedIframeOrigins];
+  return configured.map((origin) => normalizeIframeOrigin(origin));
 }
 
 function resolveDatabase(fileConfig: FileConfig, _dataDir: string): PostgresDatabaseConfig {
@@ -448,6 +474,7 @@ function validateFileConfig(config: FileConfig): void {
   optionalInteger(server?.port, "server.port", CONFIG_LIMITS.port);
   optionalString(server?.basePath, "server.basePath", { min: 1, max: 1_024 });
   optionalTrustedProxyIps(server?.trustedProxyIps, "server.trustedProxyIps");
+  optionalAllowedIframeOrigins(server?.allowedIframeOrigins, "server.allowedIframeOrigins");
   const storage = optionalSection(config.storage, "storage");
   optionalString(storage?.dataDir, "storage.dataDir", { min: 1, max: 4_096 });
   const database = optionalSection(config.database, "database");
@@ -631,6 +658,34 @@ function optionalTrustedProxyIps(value: unknown, name: string): void {
   const addresses = value.map((item) => item.trim());
   if (new Set(addresses).size !== addresses.length) {
     throw configurationError(name, "must not contain duplicate proxy addresses");
+  }
+}
+
+function optionalAllowedIframeOrigins(value: unknown, name: string): void {
+  if (value === undefined) return;
+  if (!Array.isArray(value) || value.length > 32 || value.some((item) => typeof item !== "string")) {
+    throw configurationError(name, "must be a list of at most 32 HTTPS origins");
+  }
+  const origins = value.map((origin) => normalizeIframeOrigin(origin));
+  if (new Set(origins).size !== origins.length) {
+    throw configurationError(name, "must not contain duplicate origins");
+  }
+}
+
+function normalizeIframeOrigin(value: string): string {
+  try {
+    const parsed = new URL(value);
+    if (parsed.protocol !== "https:" || !parsed.hostname || parsed.username || parsed.password
+      || parsed.pathname !== "/" || parsed.search || parsed.hash
+      || parsed.hostname.includes("*")) {
+      throw new Error("must be an exact HTTPS origin without credentials, a path, query parameters, or a fragment");
+    }
+    return parsed.origin;
+  } catch (error) {
+    throw configurationError(
+      "server.allowedIframeOrigins",
+      error instanceof Error ? error.message : "must be a valid HTTPS origin"
+    );
   }
 }
 

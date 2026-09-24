@@ -1,5 +1,5 @@
 import { createHash, randomBytes, randomUUID } from "node:crypto";
-import type { FastifyInstance } from "fastify";
+import type { FastifyInstance, FastifyReply } from "fastify";
 import type { Config } from "../config.js";
 import type { DatabaseConnection, UserRow } from "../db.js";
 import type { CollaborationService } from "../collaboration.js";
@@ -12,14 +12,24 @@ import {
   verifyPassword
 } from "../security.js";
 import { apiError, ValidationError } from "../http.js";
-import { basePathHref, withBasePath, withoutBasePath } from "../../shared/basePath.js";
+import { withBasePath, withoutBasePath } from "../../shared/basePath.js";
 import {
   isUsernameSyntaxValid,
   MAX_DISPLAY_NAME_LENGTH,
   MAX_USERNAME_LENGTH,
   MIN_USERNAME_LENGTH
 } from "../../shared/userIdentity.js";
-import { NuwaxOAuthService, type NuwaxProfile } from "../nuwaxOAuth.js";
+import { NuwaxOAuthError, NuwaxOAuthService, type NuwaxProfile } from "../nuwaxOAuth.js";
+import {
+  authenticationCookieOptions,
+  EMBEDDED_SESSION_COOKIE,
+  EMBEDDED_SHARE_COOKIE,
+  hasOwnRequestOrigin,
+  IframeLoginTickets,
+  iframeLoginEnabled,
+  OAUTH_POPUP_COOKIE,
+  sessionCookieTokens
+} from "../iframeLogin.js";
 
 interface AuthRouteContext {
   config: Config;
@@ -43,6 +53,7 @@ function text(value: unknown, max = 200): string {
 /** Register local compatibility login, Nuwax OAuth, logout, and password routes. */
 export function registerAuthRoutes(app: FastifyInstance, context: AuthRouteContext): void {
   const { config, db, collaboration, loginLimiter, nuwaxOAuth } = context;
+  const iframeLoginTickets = new IframeLoginTickets();
 
   app.post("/api/auth/login", async (request, reply) => {
     const body = request.body as { username?: unknown; password?: unknown };
@@ -59,13 +70,14 @@ export function registerAuthRoutes(app: FastifyInstance, context: AuthRouteConte
       return apiError(reply, 401, "AUTH_INVALID");
     }
     loginLimiter.reset(rateLimitKey);
-    await setSessionCookie(reply, request, config, db, user.id);
+    const embedded = iframeLoginEnabled(config) && request.headers["x-texlite-embedded"] === "1";
+    await setSessionCookie(reply, request, config, db, user.id, embedded);
     return { user: publicUser(user) };
   });
 
   app.get("/api/auth/nuwax", async (request, reply) => {
     if (!nuwaxOAuth.enabled) return apiError(reply, 404, "OAUTH_NOT_CONFIGURED");
-    const query = request.query as { return?: unknown };
+    const query = request.query as { return?: unknown; popup?: unknown };
     const returnPath = safeReturnPath(query.return, config.basePath);
     const state = randomBytes(32).toString("base64url");
     const expiresAt = new Date(Date.now() + OAUTH_STATE_TTL_MS).toISOString();
@@ -75,18 +87,23 @@ export function registerAuthRoutes(app: FastifyInstance, context: AuthRouteConte
       id: digestToken(state), returnPath, redirectUri, expiresAt, createdAt: now()
     });
     reply.setCookie("texlite_oauth_state", state, {
-      path: basePathHref(config.basePath),
-      httpOnly: true,
-      sameSite: "lax",
-      secure: requestIsSecure(request),
+      ...authenticationCookieOptions(config, request, "oauthState"),
       maxAge: Math.floor(OAUTH_STATE_TTL_MS / 1000)
     });
+    if (query.popup === "1") {
+      reply.setCookie(OAUTH_POPUP_COOKIE, "1", {
+        ...authenticationCookieOptions(config, request, "oauthPopup"),
+        maxAge: Math.floor(OAUTH_STATE_TTL_MS / 1000)
+      });
+    }
     return reply.redirect(nuwaxOAuth.authorizationUrl(state, redirectUri));
   });
 
   app.get("/auth/nuwax/callback", async (request, reply) => {
     if (!nuwaxOAuth.enabled) return apiError(reply, 404, "OAUTH_NOT_CONFIGURED");
     const query = request.query as { code?: unknown; state?: unknown; error?: unknown };
+    const popup = request.cookies[OAUTH_POPUP_COOKIE] === "1";
+    reply.clearCookie(OAUTH_POPUP_COOKIE, authenticationCookieOptions(config, request, "oauthPopup"));
     if (query.error) return apiError(reply, 400, "OAUTH_ACCESS_DENIED");
     if (typeof query.code !== "string" || typeof query.state !== "string") {
       return apiError(reply, 400, "OAUTH_CALLBACK_INVALID");
@@ -94,33 +111,62 @@ export function registerAuthRoutes(app: FastifyInstance, context: AuthRouteConte
     const stateToken = query.state;
     const stateCookie = request.cookies.texlite_oauth_state;
     const state = await db.identity.consumeOAuthState(digestToken(stateToken), now());
-    reply.clearCookie("texlite_oauth_state", { path: basePathHref(config.basePath) });
+    reply.clearCookie("texlite_oauth_state", authenticationCookieOptions(config, request, "oauthState"));
     if (!state || !stateCookie || stateCookie !== stateToken) return apiError(reply, 400, "OAUTH_STATE_INVALID");
+    let stage = "token_exchange";
     try {
       const tokens = await nuwaxOAuth.exchangeAuthorizationCode(query.code, state.redirectUri);
+      stage = "profile_fetch";
       const profile = await nuwaxOAuth.fetchProfile(tokens.accessToken);
+      stage = "user_upsert";
       const user = await upsertNuwaxUser(db, profile);
       if (user.disabled) return apiError(reply, 403, "AUTH_DISABLED");
+      stage = "token_storage";
       await nuwaxOAuth.storeTokens(user.id, tokens);
-      await setSessionCookie(reply, request, config, db, user.id);
+      stage = "session_creation";
+      const sourceSessionId = await setSessionCookie(reply, request, config, db, user.id);
+      stage = "response";
+      if (popup) {
+        const ticket = iframeLoginTickets.issue(sourceSessionId);
+        return sendOAuthPopupSuccess(reply, config, ticket);
+      }
       return reply.redirect(withBasePath(config.basePath, state.returnPath));
     } catch (error) {
       if (error instanceof ValidationError) throw error;
-      request.log.warn({ err: error }, "Nuwax OAuth sign-in failed");
+      request.log.warn({ err: error, stage, popup, upstreamFailure: error instanceof NuwaxOAuthError ? error.failure : undefined }, "Nuwax OAuth sign-in failed");
       return apiError(reply, 502, "OAUTH_PROVIDER_FAILED");
     }
   });
 
+  app.post("/api/auth/iframe/redeem", async (request, reply) => {
+    if (!iframeLoginEnabled(config) || !hasOwnRequestOrigin(request)) {
+      return apiError(reply, 403, "IFRAME_LOGIN_TICKET_INVALID");
+    }
+    const body = request.body as { ticket?: unknown } | null;
+    const ticket = body?.ticket;
+    if (typeof ticket !== "string" || !/^[A-Za-z0-9_-]{43}$/.test(ticket)) {
+      return apiError(reply, 400, "IFRAME_LOGIN_TICKET_INVALID");
+    }
+    const sourceSessionId = iframeLoginTickets.consume(ticket);
+    if (!sourceSessionId) return apiError(reply, 400, "IFRAME_LOGIN_TICKET_INVALID");
+    const sourceUser = await db.identity.findActiveSessionUser(sourceSessionId, now());
+    if (!sourceUser) return apiError(reply, 400, "IFRAME_LOGIN_TICKET_INVALID");
+    await setSessionCookie(reply, request, config, db, sourceUser.id, true);
+    reply.header("Cache-Control", "no-store");
+    return { ok: true };
+  });
+
   app.post("/api/auth/logout", async (request, reply) => {
-    const token = request.cookies.texlite_session;
-    if (token) {
+    for (const token of sessionCookieTokens(request.cookies)) {
       const sessionId = digestToken(token);
       if (await db.identity.deleteSession(sessionId)) {
         collaboration.disconnectSession(sessionId, "Signed out");
       }
     }
-    reply.clearCookie("texlite_session", { path: basePathHref(config.basePath) });
-    reply.clearCookie("texlite_share_token", { path: basePathHref(config.basePath) });
+    reply.clearCookie("texlite_session", authenticationCookieOptions(config, request, "session"));
+    reply.clearCookie(EMBEDDED_SESSION_COOKIE, authenticationCookieOptions(config, request, "embeddedSession"));
+    reply.clearCookie("texlite_share_token", authenticationCookieOptions(config, request, "shareToken"));
+    reply.clearCookie(EMBEDDED_SHARE_COOKIE, authenticationCookieOptions(config, request, "embeddedShareToken"));
     return { ok: true };
   });
 
@@ -219,8 +265,9 @@ async function setSessionCookie(
   request: { protocol: string; headers: Record<string, string | string[] | undefined> },
   config: Config,
   db: DatabaseConnection,
-  userId: string
-): Promise<void> {
+  userId: string,
+  embedded = false
+): Promise<string> {
   const session = createSessionToken();
   const expires = new Date(Date.now() + config.sessionDays * 86_400_000);
   await db.identity.createSession({
@@ -229,17 +276,22 @@ async function setSessionCookie(
     expiresAt: expires.toISOString(),
     createdAt: now()
   });
-  reply.setCookie("texlite_session", session.token, {
-    path: basePathHref(config.basePath),
-    httpOnly: true,
-    sameSite: "strict",
-    secure: requestIsSecure(request),
+  reply.setCookie(embedded ? EMBEDDED_SESSION_COOKIE : "texlite_session", session.token, {
+    ...authenticationCookieOptions(config, request, embedded ? "embeddedSession" : "session"),
     expires
   });
+  return session.digest;
 }
 
-function requestIsSecure(request: { protocol: string }): boolean {
-  return request.protocol === "https";
+function sendOAuthPopupSuccess(reply: FastifyReply, config: Config, ticket: string): unknown {
+  const targetOrigin = config.oauth ? new URL(config.oauth.redirectUri).origin : "";
+  const event = JSON.stringify({ type: "texlite:nuwax-oauth-complete", ticket }).replace(/</g, "\\u003c");
+  const target = JSON.stringify(targetOrigin).replace(/</g, "\\u003c");
+  return reply
+    .header("Cache-Control", "no-store")
+    .header("Referrer-Policy", "no-referrer")
+    .type("text/html; charset=utf-8")
+    .send(`<!doctype html><title>TexLite</title><script>if(window.opener&&!window.opener.closed){window.opener.postMessage(${event},${target});window.close();}</script><p>Sign-in completed. You may close this window.</p>`);
 }
 
 function safeReturnPath(value: unknown, basePath = "/"): string {

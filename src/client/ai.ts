@@ -1,4 +1,4 @@
-import { ApiError, api, localizedResponseError, responseErrorCode } from "./api";
+import { ApiError, api, localizedResponseError, responseErrorCode, TEXLITE_REQUEST_HEADER } from "./api";
 import { appPath } from "./basePath";
 import i18n from "./i18n";
 import { AI_PROTOCOL_VERSION } from "../shared/aiProtocol";
@@ -38,7 +38,8 @@ export async function streamAiTask(request: AiTaskRequest, onEvent: (event: AiCl
       headers: {
         Accept: "text/event-stream",
         "Content-Type": "application/json",
-        "Accept-Language": i18n.resolvedLanguage?.startsWith("zh") ? "zh" : "en"
+        "Accept-Language": i18n.resolvedLanguage?.startsWith("zh") ? "zh" : "en",
+        [TEXLITE_REQUEST_HEADER]: "1"
       },
       body: JSON.stringify({
         requestId: request.requestId,

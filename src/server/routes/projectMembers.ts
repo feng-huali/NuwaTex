@@ -11,6 +11,7 @@ import { accessibleProject } from "../projects.js";
 import { activeShareLinkForToken, createShareLinkSecret, revealShareLinkSecret, shareLinkPath } from "../shareLinks.js";
 import { basePathHref } from "../../shared/basePath.js";
 import { now, touchProject } from "./projectShared.js";
+import { authenticationCookieOptions, EMBEDDED_SHARE_COOKIE, iframeLoginEnabled } from "../iframeLogin.js";
 
 interface ProjectMemberRouteContext {
   config: Config;
@@ -28,12 +29,15 @@ export function registerProjectMemberRoutes(app: FastifyInstance, context: Proje
     const link = await activeShareLinkForToken(db, token);
     if (!link) return apiError(reply, 404, "SHARE_LINK_NOT_FOUND");
     reply.setCookie("texlite_share_token", token, {
-      path: basePathHref(config.basePath),
-      httpOnly: true,
-      sameSite: "lax",
-      secure: requestIsSecure(request),
+      ...authenticationCookieOptions(config, request, "shareToken"),
       maxAge: config.sessionDays * 86_400
     });
+    if (iframeLoginEnabled(config)) {
+      reply.setCookie(EMBEDDED_SHARE_COOKIE, token, {
+        ...authenticationCookieOptions(config, request, "embeddedShareToken"),
+        maxAge: config.sessionDays * 86_400
+      });
+    }
     const destination = `${basePathHref(config.basePath)}project/${encodeURIComponent(link.project_id)}`;
     // Links grant project access to an account, but are not anonymous
     // credentials. Preserve the link context through the normal login flow.
@@ -327,8 +331,4 @@ function handleNuwaxSearchError(reply: { code: (status: number) => { send: (payl
     if (error.failure === "unavailable") return apiError(reply, 503, "NUWAX_SEARCH_UNAVAILABLE");
   }
   return apiError(reply, 502, "NUWAX_SEARCH_FAILED");
-}
-
-function requestIsSecure(request: { protocol: string }): boolean {
-  return request.protocol === "https";
 }

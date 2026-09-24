@@ -90,6 +90,54 @@ describe("configuration", () => {
     });
   });
 
+  it("allows exact HTTPS iframe parents", () => {
+    root = fs.mkdtempSync(path.join(os.tmpdir(), "texlite-config-iframe-"));
+    const configPath = path.join(root, "texlite.config.json");
+    process.env.TEXLITE_CONFIG = configPath;
+    fs.writeFileSync(configPath, JSON.stringify({
+      storage: { dataDir: path.join(root, "data") },
+      server: { allowedIframeOrigins: ["https://Portal.Example.test/"] }
+    }));
+    expect(loadConfig().allowedIframeOrigins).toEqual(["https://portal.example.test"]);
+
+    fs.writeFileSync(configPath, JSON.stringify({
+      storage: { dataDir: path.join(root, "data") },
+      server: { allowedIframeOrigins: ["http://portal.example.test"] }
+    }));
+    expect(() => loadConfig()).toThrow(/server\.allowedIframeOrigins.*HTTPS/);
+
+    fs.writeFileSync(configPath, JSON.stringify({
+      storage: { dataDir: path.join(root, "data") },
+      server: { allowedIframeOrigins: ["https://portal.example.test/app"] }
+    }));
+    expect(() => loadConfig()).toThrow(/server\.allowedIframeOrigins/);
+
+    fs.writeFileSync(configPath, JSON.stringify({
+      storage: { dataDir: path.join(root, "data") },
+      server: { allowedIframeOrigins: ["https://*.example.test"] }
+    }));
+    expect(() => loadConfig()).toThrow(/server\.allowedIframeOrigins/);
+  });
+
+  it("requires an HTTPS OAuth callback when iframe login is enabled", () => {
+    root = fs.mkdtempSync(path.join(os.tmpdir(), "texlite-config-iframe-oauth-"));
+    const configPath = path.join(root, "texlite.config.json");
+    process.env.TEXLITE_CONFIG = configPath;
+    fs.writeFileSync(configPath, JSON.stringify({
+      storage: { dataDir: path.join(root, "data") },
+      server: { allowedIframeOrigins: ["https://portal.example.test"] },
+      OAuth: {
+        clientId: "client",
+        clientSecret: "secret",
+        redirectUri: "http://texlite.example.test/auth/nuwax/callback"
+      }
+    }));
+    delete process.env.TEXLITE_NUWAX_CLIENT_ID;
+    delete process.env.TEXLITE_NUWAX_CLIENT_SECRET;
+    delete process.env.TEXLITE_NUWAX_REDIRECT_URI;
+    expect(() => loadConfig()).toThrow(/OAuth\.redirectUri.*must use HTTPS/);
+  });
+
   it("reads a PostgreSQL connection configuration without exposing its URL in validation errors", () => {
     root = fs.mkdtempSync(path.join(os.tmpdir(), "texlite-config-postgres-"));
     const configPath = path.join(root, "texlite.config.json");

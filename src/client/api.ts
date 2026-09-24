@@ -1,6 +1,9 @@
 import i18n from "./i18n";
 import { appPath } from "./basePath";
 
+/** Required for state-changing requests when iframe login is enabled. */
+export const TEXLITE_REQUEST_HEADER = "X-TexLite-Request";
+
 export interface ApiRequestInit extends RequestInit {
   /**
    * Requests used to discover the initial route must not redirect an
@@ -30,11 +33,18 @@ function isFormData(body: BodyInit | null | undefined): boolean {
   return typeof FormData !== "undefined" && body instanceof FormData;
 }
 
+function isStateChangingMethod(method: string | undefined): boolean {
+  return ["POST", "PUT", "PATCH", "DELETE"].includes(method?.toUpperCase() ?? "GET");
+}
+
 export async function api<T>(url: string, options: ApiRequestInit = {}): Promise<T> {
   const { suppressSessionExpired = false, ...requestOptions } = options;
   const headers = new Headers(requestOptions.headers);
   if (!headers.has("Accept-Language")) {
     headers.set("Accept-Language", i18n.resolvedLanguage?.startsWith("zh") ? "zh" : "en");
+  }
+  if (isStateChangingMethod(requestOptions.method) && !headers.has(TEXLITE_REQUEST_HEADER)) {
+    headers.set(TEXLITE_REQUEST_HEADER, "1");
   }
   if (requestOptions.body && !isFormData(requestOptions.body) && !headers.has("Content-Type")) headers.set("Content-Type", "application/json");
   let response: Response;
@@ -80,6 +90,7 @@ export function localizedResponseError(body: unknown, status: number, fallbackKe
   if (code) {
     const key = ({
       AUTH_REQUIRED: "auth.sessionExpired",
+      CSRF_INVALID: "errors.codes.CSRF_INVALID",
       AUTH_DISABLED: "errors.codes.AUTH_DISABLED",
       EMAIL_ALREADY_IN_USE: "auth.emailAlreadyInUse",
       USERNAME_INVALID: "auth.usernameInvalid",

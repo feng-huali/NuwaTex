@@ -148,6 +148,37 @@ Caddy 的 `reverse_proxy` 会自动设置安全的 `X-Forwarded-For`、
 详见 [Caddy reverse_proxy 文档](https://caddyserver.com/docs/caddyfile/directives/reverse_proxy)
 和 [Caddy trusted_proxies 文档](https://caddyserver.com/docs/caddyfile/options)。
 
+## 嵌入到其他网站的 iframe
+
+默认 Cookie 仅用于第一方访问。若需要让外层网站中的 TexLite iframe 登录，在
+`server.allowedIframeOrigins` 中列出外层页面的精确 **HTTPS origin**：
+
+```json
+{
+  "server": {
+    "allowedIframeOrigins": [
+      "https://portal.example.com"
+    ]
+  }
+}
+```
+
+启用后，TexLite 会只允许这些来源嵌入页面。普通登录仍使用第一方会话 Cookie；OAuth 弹窗
+完成授权后，向 iframe 传递短时一次性票据，由 iframe 兑换自己的
+`HttpOnly; Secure; SameSite=None; Partitioned` 会话 Cookie。写操作仍要求由 TexLite 前端自动添加的请求头，协作 WebSocket 也只接受
+TexLite 自身 origin，以避免跨站请求伪造。不支持通配符、路径或非 HTTPS 地址；每个外层站点须
+显式列出。此模式下 TexLite 自身和 `OAuth.redirectUri` 也必须使用 HTTPS；例如回调地址应为
+`https://texlite.example.com/auth/nuwax/callback`，并在 Nuwax 应用后台登记同一精确地址。
+
+Nuwax 授权页可能拒绝被 iframe 直接加载。因此嵌入模式下点击“使用 Nuwax 登录”会打开一个小弹窗；
+授权完成后弹窗会通知 iframe 兑换票据。外层 iframe 若设置了 `sandbox`，至少需要包含
+`allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox`。公网部署必须由 HTTPS
+反向代理提供服务，并正确配置 `server.trustedProxyIps`。每个外层站点拥有独立的分区会话；浏览器
+若不支持分区 Cookie 或禁用了所有 Cookie，嵌入登录仍不可用。
+
+一次性票据只保存在当前 TexLite 进程内，无需新增数据库表；服务重启时尚未兑换的票据失效。
+若将来部署多个 TexLite 进程，需要为弹窗回调和票据兑换配置同一进程的路由亲和性，或改用共享票据存储。
+
 ## 许可证
 
 TexLite 使用 GNU Affero General Public License v3.0，详见

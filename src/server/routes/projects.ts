@@ -452,7 +452,7 @@ export function registerProjectCatalogRoutes(app: FastifyInstance, context: Proj
     // with the page-local client ID so each new editor can replace only its
     // own obsolete waiting work. Legacy clients retain their former session
     // grouping until their page is refreshed.
-    const laneClientId = clientId ?? `legacy:${digestToken(request.cookies.texlite_session ?? "")}`;
+    const laneClientId = clientId ?? `legacy:${digestToken(request.cookies.texlite_embedded_session ?? request.cookies.texlite_session ?? "")}`;
     const lane = `${id}\0${user.id}\0${laneClientId}\0${filePath}`;
     try {
       return { lints: await harper.lint(source, filePath, lane, typeof sequence === "number" ? sequence : undefined) };

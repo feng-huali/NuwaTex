@@ -3,6 +3,7 @@ import type { DatabaseConnection, UserRow } from "./db.js";
 import { apiError } from "./http.js";
 import { digestToken } from "./security.js";
 import { activeShareLinkForToken } from "./shareLinks.js";
+import { EMBEDDED_SHARE_COOKIE, sessionCookieTokens } from "./iframeLogin.js";
 
 export interface PublicUser {
   id: string;
@@ -51,13 +52,17 @@ export async function currentUser(request: FastifyRequest, db: DatabaseConnectio
   if (requestUserCache.has(request)) {
     return requestUserCache.get(request) ?? null;
   }
-  const token = request.cookies.texlite_session;
-  if (!token) {
+  const tokens = sessionCookieTokens(request.cookies);
+  if (!tokens.length) {
     requestUserCache.set(request, null);
     return null;
   }
-  const row = await db.identity.findActiveSessionUser(digestToken(token), new Date().toISOString());
-  const shareToken = request.cookies.texlite_share_token;
+  let row: UserRow | null = null;
+  for (const token of tokens) {
+    row = await db.identity.findActiveSessionUser(digestToken(token), new Date().toISOString());
+    if (row) break;
+  }
+  const shareToken = request.cookies[EMBEDDED_SHARE_COOKIE] ?? request.cookies.texlite_share_token;
   const shareLink = shareToken ? await activeShareLinkForToken(db, shareToken) : null;
   // A share URL never authenticates an anonymous request by itself. Once a
   // normal account is signed in, the active link is carried as request-scoped

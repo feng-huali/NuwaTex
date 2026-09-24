@@ -11,6 +11,7 @@ import type { MetricRegistry } from "../metrics.js";
 import type { ProjectOutlineService } from "../projectOutline.js";
 import { MAX_CITATION_BIBTEX_BYTES } from "../limits.js";
 import { MIN_PASSWORD_LENGTH } from "../security.js";
+import { iframeLoginEnabled } from "../iframeLogin.js";
 
 interface SystemRouteContext {
   config: Config;
@@ -37,6 +38,7 @@ export function registerSystemRoutes(app: FastifyInstance, context: SystemRouteC
     maxCollaborativeFileSizeMB: Math.floor(maxCollaborativeFileBytes(config) / 1024 / 1024),
     allowedEngines: config.allowedEngines,
     nuwaxOAuthEnabled: Boolean(config.oauth),
+    iframeLoginEnabled: iframeLoginEnabled(config),
     // Never expose the AI base URL or bearer key to the browser.
     aiAvailable: Boolean(config.ai)
   }));

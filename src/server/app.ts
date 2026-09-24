@@ -53,6 +53,7 @@ import { HarperService } from "./harper.js";
 import { TexcountService } from "./texcount.js";
 import { NuwaxOAuthService } from "./nuwaxOAuth.js";
 import { AiTaskService } from "./aiService.js";
+import { hasIframeCsrfHeader, iframeFrameAncestorsPolicy, iframeLoginEnabled, sessionCookieTokens } from "./iframeLogin.js";
 import { basePathHref, basePathPrefix, withoutBasePath } from "../shared/basePath.js";
 
 // Retained public helper for callers and tests; implementation lives with the file routes.
@@ -255,17 +256,25 @@ export async function buildApp(
     : null;
   const routePrefix = basePathPrefix(config.basePath);
   await app.register(async (routes) => {
-    routes.addHook("onRequest", async (request) => {
+    routes.addHook("onRequest", async (request, reply) => {
       const requestPath = withoutBasePath(config.basePath, request.url) ?? request.url;
+      if (iframeLoginEnabled(config)
+        && requestPath.startsWith("/api/")
+        && !["GET", "HEAD", "OPTIONS"].includes(request.method)
+        && !hasIframeCsrfHeader(request)) {
+        return apiError(reply, 403, "CSRF_INVALID");
+      }
       if (requestPath.startsWith("/api/")
         && requestPath !== "/api/auth/login"
         && requestPath !== "/api/health"
         && requestPath !== "/api/config") {
-        const token = request.cookies.texlite_session;
-        if (token && !(await currentUser(request, db))) {
-          const sessionId = digestToken(token);
-          await db.identity.deleteSession(sessionId);
-          collaboration.disconnectSession(sessionId, "Sign-in session expired");
+        const tokens = sessionCookieTokens(request.cookies);
+        if (tokens.length && !(await currentUser(request, db))) {
+          for (const token of tokens) {
+            const sessionId = digestToken(token);
+            await db.identity.deleteSession(sessionId);
+            collaboration.disconnectSession(sessionId, "Sign-in session expired");
+          }
         }
       }
     });
@@ -280,7 +289,7 @@ export async function buildApp(
       metrics,
       eventLoopDelay
     });
-    registerCollaborationRoutes(routes, { db, collaboration, metrics });
+    registerCollaborationRoutes(routes, { config, db, collaboration, metrics });
     registerProjectAiRoutes(routes, { config, db, ai });
     registerAuthRoutes(routes, { config, db, collaboration, loginLimiter, nuwaxOAuth });
     registerCitationRoutes(routes, { db });
@@ -346,6 +355,8 @@ export async function buildApp(
       });
       const sendIndex = async (_request: FastifyRequest, reply: FastifyReply) => {
         reply.header("Cache-Control", "no-store");
+        const frameAncestors = iframeFrameAncestorsPolicy(config);
+        if (frameAncestors) reply.header("Content-Security-Policy", frameAncestors);
         return reply.type("text/html; charset=utf-8").send(renderedIndex);
       };
       routes.get("/", sendIndex);
