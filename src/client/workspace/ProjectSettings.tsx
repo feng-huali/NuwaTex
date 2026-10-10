@@ -130,10 +130,6 @@ export function ProjectSettings({ onClose, project, projectId, site, files, dict
         <p className="field-hint">{t("projectSettings.showTooltipsDescription")}</p>
       </div>
       <div className="editor-preference">
-        <label className="editor-checkbox"><input type="checkbox" checked={appearancePreferences.aiWritingButton} onChange={(event) => setAppearancePreferences({ ...appearancePreferences, aiWritingButton: event.target.checked })} /><Sparkles size={15} /><span>{t("projectSettings.aiWritingButton")}</span></label>
-        <p className="field-hint">{t("projectSettings.aiWritingButtonDescription")}</p>
-      </div>
-      <div className="editor-preference">
         <label className="editor-checkbox"><input type="checkbox" checked={appearancePreferences.mathPreviewOnHover} onChange={(event) => setAppearancePreferences({ ...appearancePreferences, mathPreviewOnHover: event.target.checked })} /><Sigma size={15} /><span>{t("projectSettings.mathPreviewOnHover")}</span></label>
         <p className="field-hint">{t("projectSettings.mathPreviewOnHoverDescription")}</p>
       </div>

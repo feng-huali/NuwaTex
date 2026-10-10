@@ -49,7 +49,7 @@ curl -sS -H "Authorization: Bearer $SANDBOX_ACCESS_KEY" \
   -d '{"name":"论文标题"}' "$API/projects"
 ```
 
-本章后续项目、文件、编译和下载 API 均支持此认证方式。凭证只用于本文列出的论文操作 API 和 `GET /api/me`、`GET /api/config`、`GET /api/health`；用户管理、改密码、成员管理和实时 AI/协作等接口不接受沙箱凭证。后台 HTTP 请求不受浏览器同源或 CORS 限制，无需取得浏览器 Cookie。
+本章后续项目、文件、编译和下载 API 均支持此认证方式。凭证只用于本文列出的论文操作 API 和 `GET /api/me`、`GET /api/config`、`GET /api/health`；用户管理、改密码、成员管理和实时协作等接口不接受沙箱凭证。后台 HTTP 请求不受浏览器同源或 CORS 限制，无需取得浏览器 Cookie。
 
 第一版要求该 Nuwax 用户已经在 TexLite 有关联账号，可先通过浏览器 Nuwax OAuth 登录一次。未关联账号不自动注册。沙箱凭证由 Nuwax 管理，TexLite 不替调用方刷新它；存在 Authorization 头但验证失败时，也不会回退到 Cookie。
 
@@ -101,7 +101,7 @@ const response = await fetch(`${API}/projects`, {
 
 ### 读取站点能力
 
-`GET API/config` 无需登录，返回运行配置中适合客户端使用的部分，包括 `basePath`、`maxUploadSizeMB`、`maxCollaborativeFileSizeMB`、`allowedEngines`、`nuwaxOAuthEnabled`、`iframeLoginEnabled` 和 `aiAvailable`。不会返回 AI 服务地址或密钥。
+`GET API/config` 无需登录，返回运行配置中适合客户端使用的部分，包括 `basePath`、`maxUploadSizeMB`、`maxCollaborativeFileSizeMB`、`allowedEngines`、`nuwaxOAuthEnabled` 和 `iframeLoginEnabled`。
 
 ## 论文项目工作流
 
@@ -264,26 +264,16 @@ GET API/projects/PROJECT_ID/pdf?mainFile=main.tex&download=1
 - `GET API/projects/PROJECT_ID/compile/artifacts?mainFile=main.tex` 列出最近一次已发布编译的产物；加 `path=main.log` 获取具体产物，加 `download=1` 下载二进制产物。
 - `GET API/projects/PROJECT_ID/download` 下载整个项目 ZIP（源码及项目文件，不等同于 PDF）。
 
-## 可选：AI 写作
+## 外部 AI 操作流程
 
-`POST API/projects/PROJECT_ID/ai/tasks` 返回 SSE 流，需要项目写权限且站点已配置 AI 服务。此功能面向当前 TexLite 编辑器中的 AI 预览/确认流程，不是通用的异步任务队列：任务与服务进程中的实时文档实例绑定，进程重启或实例消失后不能保证继续或恢复。第三方若只需自动生成论文文件，建议由调用方请求 AI 后再用 `PUT /file` 写入；不要把 TexLite 会话 Cookie 转交给 AI 服务。
+AI 推理和提示词管理由外部平台完成，TexLite 提供项目文件和编译 API。Nuwax 自动化可使用沙箱 Bearer 凭证依次执行：
 
-请求核心字段：
+1. 查看项目、文件树，并读取目标文件及所需上下文文件。
+2. 在外部 AI 平台生成或修改 LaTeX 内容，再通过文件 PUT 接口写入完整内容。
+3. 调用编译接口，根据返回的诊断和日志继续修改，直到编译成功。
+4. 下载成功编译的 PDF，或打包下载整个项目。
 
-```json
-{
-  "operation": "insert",
-  "lang": "any",
-  "targetFilePath": "main.tex",
-  "startOffset": 120,
-  "endOffset": 120,
-  "includeCurrentFile": false,
-  "contextFiles": ["references.bib"],
-  "taskDescription": "根据前文撰写下一段研究背景"
-}
-```
-
-`operation` 为 `insert`（插入，偏移量相等）或 `replace`（替换，范围非空）；`lang` 为 `en` 或 `any`；偏移量是目标文件文本中的 JavaScript 字符串偏移量。上下文文件仅允许 `.tex`/`.bib`，所选上下文文件总量不超过 1 MiB。SSE 以 `data: <JSON>\n\n` 传输事件，结束事件包含生成结果；成功后需调用 `POST .../ai/tasks/REQUEST_ID/confirm` 才会应用到编辑器文档。可调用 `POST .../ai/tasks/REQUEST_ID/cancel` 取消请求。AI 接口协议及事件字段如需用于独立集成，请以 `src/shared/aiProtocol.ts` 和路由实现为准；该接口的长期稳定性尚未承诺。
+这些操作不依赖浏览器编辑器、选区或光标。TexLite 不提供内置 AI 生成、流式预览、确认写入接口，也无需配置 AI 服务地址或密钥。
 
 ## curl 调用骨架（Nuwax 自动化环境）
 

@@ -48,12 +48,10 @@ import { registerProjectCatalogRoutes } from "./routes/projects.js";
 import { registerSystemRoutes } from "./routes/system.js";
 import { registerUserManagementRoutes } from "./routes/users.js";
 import { registerWordCountRoutes } from "./routes/wordCount.js";
-import { registerProjectAiRoutes } from "./routes/projectAi.js";
 import { HarperService } from "./harper.js";
 import { TexcountService } from "./texcount.js";
 import { NuwaxOAuthService } from "./nuwaxOAuth.js";
 import { authenticateSandboxRequest, NuwaxSandboxAuthService } from "./sandboxAuth.js";
-import { AiTaskService } from "./aiService.js";
 import { hasIframeCsrfHeader, iframeFrameAncestorsPolicy, iframeLoginEnabled, sessionCookieTokens } from "./iframeLogin.js";
 import { basePathHref, basePathPrefix, withoutBasePath } from "../shared/basePath.js";
 
@@ -92,7 +90,7 @@ function escapeHtmlAttribute(value: string): string {
 export async function buildApp(
   config: Config,
   db: DatabaseConnection,
-  options: { logger?: boolean; nuwaxFetch?: typeof fetch; aiFetch?: typeof fetch; sandboxFetch?: typeof fetch } = {}
+  options: { logger?: boolean; nuwaxFetch?: typeof fetch; sandboxFetch?: typeof fetch } = {}
 ): Promise<FastifyInstance> {
   // The CLI holds the instance lock before it constructs the app. Resolve any
   // interrupted filesystem/database deletion before another startup task can
@@ -167,7 +165,6 @@ export async function buildApp(
     await recordHistory(projectId, userId, "autosave", paths);
     metrics.record("collaboration.persist", durationMs + performance.now() - started);
   }, projectQuota);
-  const ai = new AiTaskService(config, db, collaboration, options.aiFetch);
   const projectMutations = new ProjectMutationCoordinator(collaboration);
   const loginLimiter = new LoginRateLimiter();
   for (const projectId of await db.projects.listProjectIds()) {
@@ -198,7 +195,6 @@ export async function buildApp(
     editRetry.dispose();
     await harper.dispose();
     await texcount.dispose();
-    ai.dispose();
   });
   await app.register(cookie, { hook: "onRequest" });
   await app.register(websocket, { options: { maxPayload: 6 * 1024 * 1024 } });
@@ -294,7 +290,6 @@ export async function buildApp(
       eventLoopDelay
     });
     registerCollaborationRoutes(routes, { config, db, collaboration, metrics });
-    registerProjectAiRoutes(routes, { config, db, ai });
     registerAuthRoutes(routes, { config, db, collaboration, loginLimiter, nuwaxOAuth });
     registerCitationRoutes(routes, { db });
     registerUserManagementRoutes(routes, {

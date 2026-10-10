@@ -10,7 +10,6 @@ export interface SiteConfig {
   nuwaxOAuthEnabled: boolean;
   /** True when this deployment permits authenticated third-party iframe use. */
   iframeLoginEnabled: boolean;
-  aiAvailable: boolean;
   maxUploadSizeMB: number;
   maxCollaborativeFileSizeMB: number;
 }

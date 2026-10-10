@@ -9,7 +9,7 @@ export const SANDBOX_AUTH_TIMEOUT_MS = 10_000;
 export const SANDBOX_AUTH_MAX_RESPONSE_BYTES = 64 * 1024;
 
 // Sandbox credentials authorize the documented paper-writing workflow.
-// Account administration, browser-session operations and live AI/collaboration
+// Account administration, browser-session operations and live collaboration
 // routes have different authentication requirements and are not included.
 const sandboxRoutes = new Set([
   "GET /api/me", "GET /api/config", "GET /api/health",
