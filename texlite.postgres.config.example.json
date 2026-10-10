@@ -20,6 +20,9 @@
     "baseURL": "http://127.0.0.1:4010",
     "apiKey": "replace-with-ai-server-api-key"
   },
+  "sandboxAuth": {
+    "userInfoUrl": "https://testagent.xspaceagi.com/api/v1/4sandbox/user/info"
+  },
   "OAuth": {
     "baseURL": "https://testagent.xspaceagi.com",
     "clientId": "",

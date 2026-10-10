@@ -44,6 +44,11 @@ export function normalizeEmail(value: string): string {
 
 const requestUserCache = new WeakMap<FastifyRequest, UserRow | null>();
 
+/** Seed a verified external identity without creating a browser session. */
+export function cacheCurrentUser(request: FastifyRequest, user: UserRow): void {
+  requestUserCache.set(request, user);
+}
+
 export function clearCurrentUserCache(request: FastifyRequest): void {
   requestUserCache.delete(request);
 }

@@ -67,6 +67,7 @@ export const CONFIG_DEFAULTS = {
   maxProjectsPerUser: 100,
   maxSourceStorageMBPerUser: 2_048,
   oauth: null as NuwaxOAuthConfig | null,
+  sandboxUserInfoUrl: "https://testagent.xspaceagi.com/api/v1/4sandbox/user/info",
   ai: null as AiConfig | null
 } as const;
 
@@ -118,6 +119,8 @@ export interface Config {
   /** Per-account aggregate source-byte ceiling; populated by loadConfig(). */
   maxSourceStorageBytesPerUser?: number;
   oauth?: NuwaxOAuthConfig | null;
+  /** Trusted Nuwax endpoint that maps a sandbox access key to an OAuth subject. */
+  sandboxUserInfoUrl?: string;
   /** AI is enabled when this section is present; there is no separate flag. */
   ai?: AiConfig | null;
 }
@@ -231,6 +234,11 @@ export function loadConfig(configPathOverride?: string): Config {
     maxProjectsPerUser,
     maxSourceStorageBytesPerUser: maxSourceStorageMBPerUser * 1024 * 1024,
     oauth,
+    sandboxUserInfoUrl: stringSetting(
+      "sandboxAuth.userInfoUrl", process.env.TEXLITE_SANDBOX_USER_INFO_URL,
+      fileConfig.sandboxAuth?.userInfoUrl, CONFIG_DEFAULTS.sandboxUserInfoUrl,
+      { min: 1, max: 2_048 }
+    ),
     ai
   };
 
@@ -258,6 +266,7 @@ export function validateConfig(config: Config): void {
   validateDirectoryTarget("storage.dataDir", config.dataDir, true);
   validateDirectoryTarget("projects directory", config.projectsDir, true);
   validateDatabaseConfig(config.database);
+  if (config.sandboxUserInfoUrl !== undefined) validateSandboxUserInfoUrl(config.sandboxUserInfoUrl);
   validateDirectoryTarget("client directory", config.clientDir, false);
   if (config.oauth) {
     optionalString(config.oauth.clientId, "OAuth.clientId", { min: 1, max: 256 });
@@ -316,6 +325,7 @@ export function validateConfig(config: Config): void {
 }
 
 interface FileConfig {
+  sandboxAuth?: { userInfoUrl?: string };
   siteName?: string;
   adminEmail?: string;
   sessionDays?: number;
@@ -466,6 +476,9 @@ function readConfigFile(configPath: string): FileConfig {
 }
 
 function validateFileConfig(config: FileConfig): void {
+  const sandboxAuth = optionalSection(config.sandboxAuth, "sandboxAuth");
+  optionalString(sandboxAuth?.userInfoUrl, "sandboxAuth.userInfoUrl", { min: 1, max: 2_048 });
+  if (typeof sandboxAuth?.userInfoUrl === "string") validateSandboxUserInfoUrl(sandboxAuth.userInfoUrl);
   optionalString(config.siteName, "siteName", { min: 1, max: 120 });
   optionalString(config.adminEmail, "adminEmail", { min: 0, max: 320 });
   optionalInteger(config.sessionDays, "sessionDays", CONFIG_LIMITS.sessionDays);
@@ -610,6 +623,19 @@ function normalizeOAuthBaseUrl(value: string): string {
     throw configurationError("OAuth.baseURL", "must be an http(s) URL without credentials, query parameters, or a fragment");
   }
   return parsed.toString().replace(/\/+$/, "");
+}
+
+function validateSandboxUserInfoUrl(value: string): void {
+  try {
+    const parsed = new URL(value);
+    const local = ["localhost", "127.0.0.1", "[::1]"].includes(parsed.hostname);
+    if (!(parsed.protocol === "https:" || (parsed.protocol === "http:" && local))
+      || !parsed.hostname || parsed.username || parsed.password || parsed.search || parsed.hash) {
+      throw new Error("must be an HTTPS URL without credentials, query parameters, or a fragment; local HTTP is allowed for testing");
+    }
+  } catch (error) {
+    throw configurationError("sandboxAuth.userInfoUrl", error instanceof Error ? error.message : "must be a valid URL");
+  }
 }
 
 function normalizeAiBaseUrl(value: string): string {

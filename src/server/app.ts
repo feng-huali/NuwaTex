@@ -52,6 +52,7 @@ import { registerProjectAiRoutes } from "./routes/projectAi.js";
 import { HarperService } from "./harper.js";
 import { TexcountService } from "./texcount.js";
 import { NuwaxOAuthService } from "./nuwaxOAuth.js";
+import { authenticateSandboxRequest, NuwaxSandboxAuthService } from "./sandboxAuth.js";
 import { AiTaskService } from "./aiService.js";
 import { hasIframeCsrfHeader, iframeFrameAncestorsPolicy, iframeLoginEnabled, sessionCookieTokens } from "./iframeLogin.js";
 import { basePathHref, basePathPrefix, withoutBasePath } from "../shared/basePath.js";
@@ -91,7 +92,7 @@ function escapeHtmlAttribute(value: string): string {
 export async function buildApp(
   config: Config,
   db: DatabaseConnection,
-  options: { logger?: boolean; nuwaxFetch?: typeof fetch; aiFetch?: typeof fetch } = {}
+  options: { logger?: boolean; nuwaxFetch?: typeof fetch; aiFetch?: typeof fetch; sandboxFetch?: typeof fetch } = {}
 ): Promise<FastifyInstance> {
   // The CLI holds the instance lock before it constructs the app. Resolve any
   // interrupted filesystem/database deletion before another startup task can
@@ -110,6 +111,7 @@ export async function buildApp(
   });
   const queue = new CompileQueue(config.maxCompileJobs);
   const nuwaxOAuth = new NuwaxOAuthService(config, db, options.nuwaxFetch);
+  const sandboxAuth = new NuwaxSandboxAuthService(config.sandboxUserInfoUrl, options.sandboxFetch);
   const compileCoordinator = new ProjectCompileCoordinator(queue);
   const metrics = new MetricRegistry(200);
   const eventLoopDelay = monitorEventLoopDelay({ resolution: 20 });
@@ -258,9 +260,11 @@ export async function buildApp(
   await app.register(async (routes) => {
     routes.addHook("onRequest", async (request, reply) => {
       const requestPath = withoutBasePath(config.basePath, request.url) ?? request.url;
+      const sandboxAuthenticated = await authenticateSandboxRequest(request, db, sandboxAuth, config.basePath);
       if (iframeLoginEnabled(config)
         && requestPath.startsWith("/api/")
         && !["GET", "HEAD", "OPTIONS"].includes(request.method)
+        && !sandboxAuthenticated
         && !hasIframeCsrfHeader(request)) {
         return apiError(reply, 403, "CSRF_INVALID");
       }
@@ -269,7 +273,7 @@ export async function buildApp(
         && requestPath !== "/api/health"
         && requestPath !== "/api/config") {
         const tokens = sessionCookieTokens(request.cookies);
-        if (tokens.length && !(await currentUser(request, db))) {
+        if (!sandboxAuthenticated && tokens.length && !(await currentUser(request, db))) {
           for (const token of tokens) {
             const sessionId = digestToken(token);
             await db.identity.deleteSession(sessionId);

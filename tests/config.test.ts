@@ -16,13 +16,30 @@ describe("configuration", () => {
     "TEXLITE_MAX_PROJECTS_PER_USER", "TEXLITE_MAX_PROJECT_SOURCE_STORAGE_MB",
     "TEXLITE_NUWAX_CLIENT_ID", "TEXLITE_NUWAX_CLIENT_SECRET", "TEXLITE_NUWAX_REDIRECT_URI", "TEXLITE_NUWAX_BASE_URL",
     "TEXLITE_OAUTH_CLIENT_ID", "TEXLITE_OAUTH_CLIENT_SECRET", "TEXLITE_OAUTH_REDIRECT_URI", "TEXLITE_OAUTH_BASE_URL",
-    "TEXLITE_AI_BASE_URL", "TEXLITE_AI_API_KEY"
+    "TEXLITE_AI_BASE_URL", "TEXLITE_AI_API_KEY", "TEXLITE_SANDBOX_USER_INFO_URL"
   ] as const;
   const originalEnvironment = new Map(envKeys.map((key) => [key, process.env[key]]));
   let root = "";
 
   beforeEach(() => {
     process.env.TEXLITE_DATABASE_URL = "postgresql://postgres@127.0.0.1:5432/texlite-test";
+  });
+
+  it("configures the sandbox identity endpoint independently from OAuth", () => {
+    root = fs.mkdtempSync(path.join(os.tmpdir(), "texlite-config-"));
+    const configPath = path.join(root, "config.json");
+    fs.writeFileSync(configPath, "{}");
+    expect(loadConfig(configPath).sandboxUserInfoUrl)
+      .toBe("https://testagent.xspaceagi.com/api/v1/4sandbox/user/info");
+    fs.writeFileSync(configPath, JSON.stringify({
+      sandboxAuth: { userInfoUrl: "https://agent.nuwax.com/api/v1/4sandbox/user/info" }
+    }));
+    expect(loadConfig(configPath).sandboxUserInfoUrl)
+      .toBe("https://agent.nuwax.com/api/v1/4sandbox/user/info");
+    process.env.TEXLITE_SANDBOX_USER_INFO_URL = "http://127.0.0.1:4011/user/info";
+    expect(loadConfig(configPath).sandboxUserInfoUrl).toBe("http://127.0.0.1:4011/user/info");
+    process.env.TEXLITE_SANDBOX_USER_INFO_URL = "http://remote.example/user/info";
+    expect(() => loadConfig(configPath)).toThrow("sandboxAuth.userInfoUrl");
   });
 
   afterEach(() => {

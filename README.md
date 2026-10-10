@@ -23,6 +23,9 @@ fork 仓库地址为 [ChenZhongPu/TexLite](https://github.com/ChenZhongPu/TexLit
 安装、部署和开发配置不在本 README 中重复说明，基础内容请参考
 [上游项目](https://github.com/SWUFE-DB-Group/TexLite)。
 
+第三方平台或自动化程序如何通过 API 执行单人论文写作流程，参见
+[论文写作 API 文档](docs/third-party-writing-api.md)。
+
 ## Nuwax OAuth 配置
 
 在配置文件中填写管理员登记的 Nuwax OAuth 信息。示例中的 `redirectUri` 故意留空，必须由管理员
@@ -45,6 +48,25 @@ fork 仓库地址为 [ChenZhongPu/TexLite](https://github.com/ChenZhongPu/TexLit
 项目所有者首次使用手机号邀请前，需要先通过 Nuwax 登录一次，以便服务端取得带有该用户租户上下文的访问令牌。
 
 本地测试不需要保留旧数据；删除 `data` 目录后重新启动即可按当前配置初始化。
+
+## Nuwax 自动化 API 认证
+
+Nuwax 自动化请求可携带 `Authorization: Bearer <SANDBOX_ACCESS_KEY>`。
+TexLite 用该凭证查询 Nuwax 用户信息接口，将返回的 `id` 对应到已关联账号的 OAuth `sub`，
+然后执行现有项目权限和配额检查。用户需已在 TexLite 注册；不会自动新建账号。
+
+验证地址独立于 OAuth 登录地址，配置为：
+
+```json
+{
+  "sandboxAuth": {
+    "userInfoUrl": "https://testagent.xspaceagi.com/api/v1/4sandbox/user/info"
+  }
+}
+```
+
+上述地址也是默认值，可通过 `TEXLITE_SANDBOX_USER_INFO_URL` 覆盖。
+接口范围和完整调用示例参见 [论文写作 API 文档](docs/third-party-writing-api.md)。
 
 ## PostgreSQL（全新部署）
 

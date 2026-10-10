@@ -39,6 +39,12 @@ export class PostgresIdentityRepository {
     return row ? toUserRow(row) : null;
   }
 
+  async findUserByNuwaxSubject(subject: string): Promise<UserRow | null> {
+    const [row] = await this.db.select().from(schema.users)
+      .where(eq(schema.users.nuwaxSubject, subject)).limit(1);
+    return row ? toUserRow(row) : null;
+  }
+
   async findActiveUserByEmail(email: string): Promise<UserRow | null> {
     const [row] = await this.db.select().from(schema.users)
       .where(and(

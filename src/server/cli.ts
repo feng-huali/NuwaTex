@@ -161,6 +161,9 @@ function writeInitialConfig(configPath: string, siteName: string, adminEmail: st
       maxProjectsPerUser: CONFIG_DEFAULTS.maxProjectsPerUser,
       maxSourceStorageMBPerUser: CONFIG_DEFAULTS.maxSourceStorageMBPerUser
     },
+    sandboxAuth: {
+      userInfoUrl: process.env.TEXLITE_SANDBOX_USER_INFO_URL ?? CONFIG_DEFAULTS.sandboxUserInfoUrl
+    },
     OAuth: {
       baseURL: process.env.TEXLITE_NUWAX_BASE_URL ?? "https://testagent.xspaceagi.com",
       clientId: process.env.TEXLITE_NUWAX_CLIENT_ID ?? "",
