@@ -100,8 +100,15 @@ export class NuwaxSandboxAuthService {
       throw httpError(502, "SANDBOX_AUTH_RESPONSE_INVALID");
     }
     const info = payload as Record<string, unknown>;
-    if (info.error || info.success === false) throw httpError(401, "SANDBOX_AUTH_INVALID");
-    const id = info.id;
+    if (info.error || info.success === false
+      || (typeof info.code === "string" && info.code !== "0000")) {
+      throw httpError(401, "SANDBOX_AUTH_INVALID");
+    }
+    if (info.success !== true || info.code !== "0000"
+      || typeof info.data !== "object" || info.data === null || Array.isArray(info.data)) {
+      throw httpError(502, "SANDBOX_AUTH_RESPONSE_INVALID");
+    }
+    const id = (info.data as Record<string, unknown>).id;
     const subject = typeof id === "string" ? id.trim()
       : typeof id === "number" && Number.isSafeInteger(id) ? String(id) : "";
     if (!subject || subject.length > 256) {

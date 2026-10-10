@@ -20,7 +20,17 @@ Nuwax 自动化环境为每次请求提供 `SANDBOX_ACCESS_KEY`。调用 TexLite
 Authorization: Bearer <SANDBOX_ACCESS_KEY>
 ```
 
-TexLite 在服务端把同一个凭证发送到管理员配置的 Nuwax 用户信息接口。成功响应的顶层 `id` 字段应与该用户 OAuth 返回的 `sub` 一致；TexLite 按 `nuwax_subject` 查找关联用户，并继续检查账号状态、项目权限和存储配额。不会保存该沙箱凭证；每个 Bearer 请求都会重新查询 Nuwax。
+TexLite 在服务端把同一个凭证发送到管理员配置的 Nuwax 用户信息接口。成功响应须包含 `code: "0000"`、`success: true` 和嵌套的 `data.id`，例如：
+
+```json
+{
+  "code": "0000",
+  "success": true,
+  "data": { "id": 1742867341 }
+}
+```
+
+`data.id` 应与该用户 OAuth 返回的 `sub` 一致；安全整数 ID 会转为字符串（如 `"1742867341"`），字符串 ID 保留其标识值。TexLite 按 `nuwax_subject` 查找关联用户，并继续检查账号状态、项目权限和存储配额。不会保存该沙箱凭证；每个 Bearer 请求都会重新查询 Nuwax。仅 HTTP 200 不代表认证成功，业务失败响应也会拒绝认证。
 
 ### 验证地址配置
 
@@ -97,11 +107,11 @@ curl -sS -H "Authorization: Bearer $SANDBOX_ACCESS_KEY" \
 
 | HTTP 状态 | code | 含义 |
 |---|---|---|
-| 401 | `SANDBOX_AUTH_INVALID` | Bearer 格式错误，或 Nuwax 拒绝凭证。 |
+| 401 | `SANDBOX_AUTH_INVALID` | Bearer 格式错误，或 Nuwax 拒绝凭证（含 HTTP 200 下的业务失败）。 |
 | 403 | `SANDBOX_ACCOUNT_NOT_LINKED` | 用户尚未关联 TexLite 账号。 |
 | 403 | `AUTH_DISABLED` | TexLite 账号已禁用。 |
 | 403 | `SANDBOX_API_FORBIDDEN` | 此接口不接受沙箱凭证。 |
-| 502 | `SANDBOX_AUTH_RESPONSE_INVALID` | 上游响应不是有效 JSON 或未包含有效的顶层 id。 |
+| 502 | `SANDBOX_AUTH_RESPONSE_INVALID` | 上游响应不是有效 JSON，成功响应结构不符合要求，或未包含有效的 `data.id`。 |
 | 502/503 | `SANDBOX_AUTH_UNAVAILABLE` | 上游服务失败、限流或无法连接。 |
 | 504 | `SANDBOX_AUTH_TIMEOUT` | 验证请求（含读取响应体）超过 10 秒。 |
 

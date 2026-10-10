@@ -12,14 +12,20 @@ import { requireEditableProject } from "../src/server/routes/projectShared.js";
 afterEach(() => vi.useRealTimers());
 
 const user: UserRow = {
-  id: "texlite-user-id", nuwax_subject: "nuwax-123", username: "writer",
+  id: "texlite-user-id", nuwax_subject: "1742867341", username: "writer",
   display_name: "Writer", password_hash: "", email: null, avatar_url: null,
   role: "user", disabled: 0, must_change_password: 0, can_create_projects: 1,
   created_at: "2026-10-10T00:00:00Z"
 };
 
+function userInfoPayload(id: unknown) {
+  return { code: "0000", success: true, data: { id } };
+}
+
 async function fixture(options: { basePath?: string; iframe?: boolean } = {}) {
-  const fetchImpl = vi.fn<typeof fetch>(async () => Response.json({ id: user.nuwax_subject }));
+  const fetchImpl = vi.fn<typeof fetch>(async () => Response.json({
+    ...userInfoPayload(1742867341), displayCode: "0000", message: "success"
+  }));
   const identity = {
     findUserByNuwaxSubject: vi.fn(async (_subject: string): Promise<UserRow | null> => ({ ...user })),
     findActiveSessionUser: vi.fn(async (): Promise<UserRow | null> => ({ ...user })),
@@ -66,7 +72,7 @@ async function fixture(options: { basePath?: string; iframe?: boolean } = {}) {
 }
 
 describe("Nuwax sandbox request authentication", () => {
-  it("maps the upstream id to an existing user on every request without cookies", async () => {
+  it("maps the upstream numeric data.id to an existing user's OAuth subject on every request without cookies", async () => {
     const { app, fetchImpl, identity } = await fixture({ basePath: "/texlite" });
     try {
       for (let index = 0; index < 2; index++) {
@@ -170,15 +176,52 @@ describe("Nuwax sandbox request authentication", () => {
 describe("sandbox identity endpoint failures", () => {
   it("accepts exact string ids and safe numeric ids, and rejects ambiguous identities", async () => {
     for (const id of ["nuwax-123", "000123", 123]) {
-      const service = new NuwaxSandboxAuthService(undefined, async () => Response.json({ id }));
+      const service = new NuwaxSandboxAuthService(undefined, async () => Response.json(userInfoPayload(id)));
       expect(await service.subjectForKey("key")).toBe(String(id));
     }
-    for (const payload of [{}, { id: "" }, { id: 1.5 }, { id: Number.MAX_SAFE_INTEGER + 1 }, { sub: "wrong-field" }, { id: ["wrong"] }]) {
+    for (const payload of [
+      {}, { id: "legacy-top-level-id" }, userInfoPayload(""), userInfoPayload(1.5),
+      userInfoPayload(Number.MAX_SAFE_INTEGER + 1), userInfoPayload(["wrong"]),
+      { code: "0000", success: true, data: { sub: "wrong-field" } },
+      { code: "0000", success: true, id: "no-data" },
+      { code: "0000", success: true, data: null },
+      { code: "0000", success: true, data: [{ id: "wrong" }] },
+      { code: "0000", data: { id: "missing-success" } },
+      { success: true, data: { id: "missing-code" } }
+    ]) {
       const service = new NuwaxSandboxAuthService(undefined, async () => Response.json(payload));
       await expect(service.subjectForKey("key")).rejects.toMatchObject({
         statusCode: 502, code: "SANDBOX_AUTH_RESPONSE_INVALID"
       });
     }
+  });
+
+  it("rejects HTTP 200 business failures even when they contain a data.id", async () => {
+    const { app, fetchImpl, identity } = await fixture();
+    try {
+      for (const payload of [
+        { ...userInfoPayload(1742867341), success: false },
+        { ...userInfoPayload(1742867341), code: "4010" },
+        { ...userInfoPayload(1742867341), error: "invalid_key" }
+      ]) {
+        fetchImpl.mockResolvedValueOnce(Response.json(payload));
+        const response = await app.inject({
+          url: "/api/me",
+          headers: { authorization: "Bearer key", cookie: "texlite_session=valid-cookie" }
+        });
+        expect(response.statusCode).toBe(401);
+        expect(response.json().code).toBe("SANDBOX_AUTH_INVALID");
+      }
+      expect(identity.findUserByNuwaxSubject).not.toHaveBeenCalled();
+      expect(identity.findActiveSessionUser).not.toHaveBeenCalled();
+    } finally { await app.close(); }
+  });
+
+  it("uses only data.id when an unrelated top-level id is also present", async () => {
+    const service = new NuwaxSandboxAuthService(undefined, async () => Response.json({
+      ...userInfoPayload(1742867341), id: "unrelated-id"
+    }));
+    expect(await service.subjectForKey("key")).toBe("1742867341");
   });
 
   it("fails closed for transport failures and malformed or oversized responses", async () => {
