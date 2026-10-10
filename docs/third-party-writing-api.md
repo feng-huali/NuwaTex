@@ -6,11 +6,10 @@
 
 - 所有路径都以 `/api` 开头，并受配置项 `basePath` 影响。例如 `basePath` 为 `/texlite` 时，`/api/projects` 的完整路径是 `/texlite/api/projects`。
 - 以下用 `BASE` 表示站点 origin（如 `https://texlite.example.com`），用 `API` 表示 `BASE + basePath + /api`，用 `PROJECT_ID` 表示项目 UUID。
-- 后台自动化使用 Nuwax 的 `SANDBOX_ACCESS_KEY`，通过 `Authorization: Bearer ...` 鉴权；浏览器继续使用 Nuwax OAuth 登录后建立的 TexLite 会话 Cookie。
+- 所有受保护的接口使用 Nuwax 的 `SANDBOX_ACCESS_KEY`，通过 `Authorization: Bearer ...` 鉴权。
 - JSON 请求需设置 `Content-Type: application/json`。文件上传使用 `multipart/form-data`，表单字段名为 `file`。
 - 项目内路径均为相对路径，使用 `/` 分隔，例如 `chapters/intro.tex`；不要传操作系统绝对路径。带中文或空格的 query 参数要进行 URL 编码。
 - 成功响应通常为 JSON；文件、PDF、ZIP 下载是二进制响应。错误响应为 `{ "code": "...", "error": "...", ... }`，客户端应优先依据 `code` 处理错误。
-- 如果启用了 iframe 登录支持，Cookie 认证的写操作还必须带 `X-TexLite-Request: 1` 请求头。沙箱 Bearer 认证成功的请求不需要这个头。
 - 创建项目和写文件等操作受用户配额、文件大小及站点配置约束。先读取 `/api/config`，不要在客户端硬编码站点上限。
 
 ## 后台自动化：Nuwax 沙箱凭证认证
@@ -21,7 +20,7 @@ Nuwax 自动化环境为每次请求提供 `SANDBOX_ACCESS_KEY`。调用 TexLite
 Authorization: Bearer <SANDBOX_ACCESS_KEY>
 ```
 
-TexLite 在服务端把同一个凭证发送到管理员配置的 Nuwax 用户信息接口。成功响应的顶层 `id` 字段应与该用户 OAuth 返回的 `sub` 一致；TexLite 按 `nuwax_subject` 查找关联用户，并继续检查账号状态、项目权限和存储配额。不会创建 Cookie 会话，也不会保存该沙箱凭证；每个 Bearer 请求都会重新查询 Nuwax。
+TexLite 在服务端把同一个凭证发送到管理员配置的 Nuwax 用户信息接口。成功响应的顶层 `id` 字段应与该用户 OAuth 返回的 `sub` 一致；TexLite 按 `nuwax_subject` 查找关联用户，并继续检查账号状态、项目权限和存储配额。不会保存该沙箱凭证；每个 Bearer 请求都会重新查询 Nuwax。
 
 ### 验证地址配置
 
@@ -35,7 +34,7 @@ TexLite 在服务端把同一个凭证发送到管理员配置的 Nuwax 用户�
 }
 ```
 
-上述 URL 也是默认值。此地址独立于浏览器 OAuth 的 `OAuth.baseURL`；生产环境可改为 `https://agent.nuwax.com/api/v1/4sandbox/user/info`。环境变量 `TEXLITE_SANDBOX_USER_INFO_URL` 可以覆盖文件配置。验证地址须使用 HTTPS；本地 mock 测试可使用 localhost/127.0.0.1 的 HTTP 地址。地址只能由管理员配置，不从调用方请求中读取；请求不跟随重定向。
+上述 URL 也是默认值。此地址独立于 `OAuth.baseURL`；生产环境可改为 `https://agent.nuwax.com/api/v1/4sandbox/user/info`。环境变量 `TEXLITE_SANDBOX_USER_INFO_URL` 可以覆盖文件配置。验证地址须使用 HTTPS；本地 mock 测试可使用 localhost/127.0.0.1 的 HTTP 地址。地址只能由管理员配置，不从调用方请求中读取；请求不跟随重定向。
 
 ### 调用方式与适用范围
 
@@ -49,9 +48,50 @@ curl -sS -H "Authorization: Bearer $SANDBOX_ACCESS_KEY" \
   -d '{"name":"论文标题"}' "$API/projects"
 ```
 
-本章后续项目、文件、编译和下载 API 均支持此认证方式。凭证只用于本文列出的论文操作 API 和 `GET /api/me`、`GET /api/config`、`GET /api/health`；用户管理、改密码、成员管理和实时协作等接口不接受沙箱凭证。后台 HTTP 请求不受浏览器同源或 CORS 限制，无需取得浏览器 Cookie。
+本章后续项目、文件、编译和下载 API 均支持此认证方式。凭证只用于本文列出的论文操作 API 和 `GET /api/me`、`GET /api/config`、`GET /api/health`；用户管理、改密码、成员管理和实时协作等接口不接受沙箱凭证。后台 HTTP 请求不受浏览器同源或 CORS 限制。
 
-第一版要求该 Nuwax 用户已经在 TexLite 有关联账号，可先通过浏览器 Nuwax OAuth 登录一次。未关联账号不自动注册。沙箱凭证由 Nuwax 管理，TexLite 不替调用方刷新它；存在 Authorization 头但验证失败时，也不会回退到 Cookie。
+前提：该 Nuwax 用户已经在 TexLite 建立账号关联（首次通过 Nuwax 登录 TexLite 后建立）。沙箱认证不会自动注册未关联用户。沙箱凭证由 Nuwax 管理，TexLite 不替调用方刷新它；提供的 Authorization 凭证验证失败时，请求会直接失败。
+
+### 沙箱 API 完整白名单
+
+以下逐项对应 `src/server/sandboxAuth.ts` 中的白名单。路径中的 `:id` 替换为项目 UUID；若配置了 `basePath`，需在 `/api` 前加上该前缀。
+
+| HTTP 方法 | 路径 | 用途 |
+|---|---|---|
+| GET | `/api/me` | 查询凭证对应的当前用户 |
+| GET | `/api/config` | 读取站点能力与限制 |
+| GET | `/api/health` | 检查服务健康状态 |
+| GET | `/api/projects` | 分页查询当前用户的项目 |
+| POST | `/api/projects` | 创建项目 |
+| POST | `/api/projects/import` | 从 ZIP 导入项目 |
+| POST | `/api/projects/:id/duplicate` | 复制项目 |
+| GET | `/api/projects/:id` | 查询项目详情 |
+| PATCH | `/api/projects/:id` | 修改项目名称、主文档、编译器等设置 |
+| DELETE | `/api/projects/:id` | 删除项目 |
+| GET | `/api/projects/:id/files` | 获取文件与文件夹列表 |
+| GET | `/api/projects/:id/main-files` | 获取 LaTeX 文件与主文档候选 |
+| GET | `/api/projects/:id/outline` | 获取文档大纲 |
+| GET | `/api/projects/:id/search` | 搜索项目文件内容 |
+| POST | `/api/projects/:id/search/replace` | 替换项目文件中的匹配内容 |
+| GET | `/api/projects/:id/file` | 读取文本文件 |
+| GET | `/api/projects/:id/file/raw` | 读取原始文件内容 |
+| POST | `/api/projects/:id/file` | 创建新文件，不覆盖已有文件 |
+| PUT | `/api/projects/:id/file` | 写入或完整覆盖文本文件 |
+| DELETE | `/api/projects/:id/file` | 删除文件或文件夹树 |
+| POST | `/api/projects/:id/folders` | 创建文件夹 |
+| PATCH | `/api/projects/:id/path` | 移动或重命名文件、文件夹 |
+| POST | `/api/projects/:id/upload` | 上传文件 |
+| POST | `/api/projects/:id/compile` | 编译指定或当前主文档 |
+| POST | `/api/projects/:id/compile/cancel` | 取消编译 |
+| GET | `/api/projects/:id/compile/latest` | 查询最近编译状态 |
+| GET | `/api/projects/:id/compile/artifacts` | 列出或读取编译产物 |
+| POST | `/api/projects/:id/compile/clean` | 清理编译缓存与产物 |
+| GET | `/api/projects/:id/pdf` | 查看或下载 PDF |
+| GET | `/api/projects/:id/download` | 下载项目 ZIP |
+
+白名单按 **HTTP 方法与路径共同匹配**，query 参数不改变白名单范围。未列出的接口不接受沙箱凭证，携带格式有效的 Bearer 头调用时返回 `403 SANDBOX_API_FORBIDDEN`；新增 API 也不会自动开放，必须显式加入白名单。
+
+用户管理、修改密码、成员/邀请管理、批注、实时协作、管理监控（如 `/api/health/metrics`）等均不在白名单内。认证成功仅确定当前用户身份，不会授予额外权限；每个接口仍执行原有项目权限、账号状态、配额与输入校验。`/api/config` 和 `/api/health` 本身为公开接口，无凭证也可调用；若携带 Bearer 头，仍会验证该凭证。
 
 ### 认证错误
 
@@ -65,47 +105,14 @@ curl -sS -H "Authorization: Bearer $SANDBOX_ACCESS_KEY" \
 | 502/503 | `SANDBOX_AUTH_UNAVAILABLE` | 上游服务失败、限流或无法连接。 |
 | 504 | `SANDBOX_AUTH_TIMEOUT` | 验证请求（含读取响应体）超过 10 秒。 |
 
-## 浏览器登录：Nuwax OAuth
+## 身份与站点能力
 
-用户访问 TexLite 网页时，通过 Nuwax OAuth 建立浏览器会话。这个流程也用于首次关联 TexLite 账号。需要区分两种凭证：
-
-- **Nuwax OAuth access token**：TexLite 后端用它获取用户资料，必要时在服务端刷新；凭证加密保存在 TexLite 服务端，不会返回给浏览器或第三方 API 调用方。它不是 TexLite API 的 Bearer token。
-- **TexLite 会话 Cookie**：OAuth 成功后，TexLite 在回调响应中设置 HttpOnly 会话 Cookie。后续 TexLite API 请求使用这个 Cookie 鉴权。浏览器会自动携带同站 Cookie；页面 JavaScript 不能读取 HttpOnly Cookie 的值，这是预期的安全设计。
-
-### 浏览器 OAuth 流程
-
-1. 让用户在浏览器中导航到 `BASE + basePath + /api/auth/nuwax`。TexLite 会跳转到 Nuwax 授权页，并申请配置好的 `profile,user:search` scope。
-2. 用户在 Nuwax 完成授权后，Nuwax 将浏览器重定向到管理员登记的 `redirectUri`，即 TexLite 的 `/auth/nuwax/callback`。
-3. TexLite 服务端校验一次性 `state` 和 OAuth 状态 Cookie，用授权码在服务端交换 Nuwax token、读取用户资料，并设置 TexLite 会话 Cookie。
-4. 登录成功后浏览器回到发起登录时指定的安全站内地址（默认回到站点）。调用 `GET API/me` 确认会话已建立，再使用同一浏览器会话调用项目 API。
-
-OAuth 回调不会在 JSON 响应中交付可保存并用于 TexLite API 的 token；凭证通过 HttpOnly Cookie 设置。这是浏览器交互式登录，不是面向后台脚本的 OAuth token 换取接口。不要把授权码、Nuwax access/refresh token 或 Client Secret 交给第三方 AI 服务。
-
-### 后续 API 请求如何携带会话
-
-同源网页中的 `fetch` 可这样调用，浏览器会自动携带 TexLite Cookie：
-
-```js
-const response = await fetch(`${API}/projects`, {
-  credentials: "same-origin"
-});
-```
-
-若调用代码运行在另一个 origin，通常需要 `credentials: "include"`，并且 TexLite 部署必须允许该 origin 的凭证式 CORS。第三方 iframe 还会受浏览器第三方 Cookie 策略影响；不要假设跨站 Cookie 一定可用。最稳妥的方式是让 API 请求由 TexLite 页面或同源后端发出。启用 iframe 登录时，写操作还必须添加 `X-TexLite-Request: 1`。
-
-`GET API/me` 返回 `{ "user": ... }`，用于检查当前会话身份；`POST API/auth/logout` 注销当前 TexLite 会话。
-
-### 本地账号登录（兼容方式）
-
-`POST API/auth/login` 接收 `{ "username": "...", "password": "..." }`，成功后同样设置 TexLite HttpOnly 会话 Cookie。它只是本地兼容登录方式，不是 Nuwax OAuth 流程，也不应作为第三方集成的首选凭证获取方式。
-
-### 读取站点能力
-
-`GET API/config` 无需登录，返回运行配置中适合客户端使用的部分，包括 `basePath`、`maxUploadSizeMB`、`maxCollaborativeFileSizeMB`、`allowedEngines`、`nuwaxOAuthEnabled` 和 `iframeLoginEnabled`。
+- `GET API/me`：携带沙箱 Bearer 凭证，返回 `{ "user": ... }`，用于确认当前凭证对应的 TexLite 用户。
+- `GET API/config`：公开接口，返回 `basePath`、`maxUploadSizeMB`、`maxCollaborativeFileSizeMB`、`allowedEngines` 等站点能力，自动化程序可据此获取路径、上传限制和可用编译器。
 
 ## 论文项目工作流
 
-推荐顺序：读取能力配置 → 登录 → 创建项目或导入 ZIP → 创建/上传/写入文件 → 选择主文档和编译器 → 编译 → 下载 PDF。
+推荐顺序：读取能力配置 → 使用沙箱凭证确认身份 → 创建项目或导入 ZIP → 创建/上传/写入文件 → 选择主文档和编译器 → 编译 → 下载 PDF。
 
 ### 创建空项目
 
@@ -257,7 +264,7 @@ GET API/projects/PROJECT_ID/compile/latest?mainFile=main.tex
 GET API/projects/PROJECT_ID/pdf?mainFile=main.tex&download=1
 ```
 
-该接口返回 `application/pdf`。加 `download=1` 时响应按附件下载；如果从某次特定成功编译下载，可把该次 `runId` 放入 `run` 参数，避免拿到之后更新的 PDF。下载请求同样需要沙箱 Bearer 凭证或有效的 TexLite 会话 Cookie。
+该接口返回 `application/pdf`。加 `download=1` 时响应按附件下载；如果从某次特定成功编译下载，可把该次 `runId` 放入 `run` 参数，避免拿到之后更新的 PDF。下载请求同样需要携带沙箱 Bearer 凭证。
 
 ### 获取编译产物或打包项目
 
@@ -277,7 +284,7 @@ AI 推理和提示词管理由外部平台完成，TexLite 提供项目文件和
 
 ## curl 调用骨架（Nuwax 自动化环境）
 
-以下直接使用 Nuwax 注入的 `SANDBOX_ACCESS_KEY`，无需本地账号密码或 Cookie 文件。替换站点、项目 ID；如果站点配置了 basePath，也要包含在 API 地址里。
+以下直接使用 Nuwax 注入的 `SANDBOX_ACCESS_KEY`。替换站点、项目 ID；如果站点配置了 basePath，也要包含在 API 地址里。
 
 ```bash
 API='https://texlite.example.com/api'
@@ -303,4 +310,4 @@ curl -sS -H "Authorization: Bearer $SANDBOX_ACCESS_KEY" -o paper.pdf \
 
 ## 当前边界
 
-后台自动化可直接使用 Nuwax 沙箱凭证操作已关联用户有权访问的项目。此凭证与 Nuwax OAuth access token 是不同的认证机制，不应混用；TexLite 不另外签发服务令牌。浏览器继续使用 OAuth 和 Cookie。实时 Yjs/WebSocket 协议不在本文范围内。
+后台自动化可直接使用 Nuwax 沙箱凭证操作已关联用户有权访问的项目。此凭证与 Nuwax OAuth access token 不同，不应混用；TexLite 不另外签发服务令牌。本文仅描述沙箱 Bearer 认证的 HTTP API，实时 Yjs/WebSocket 协议不在本文范围内。
