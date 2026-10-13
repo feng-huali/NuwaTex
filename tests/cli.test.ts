@@ -44,7 +44,7 @@ describe("CLI argument parsing", () => {
       outputLog: "/tmp/out.log", errorLog: "/tmp/error.log"
     };
     const plain = formatProcessStatus(status);
-    expect(plain).toContain("● TexLite - Lightweight collaborative LaTeX editor");
+    expect(plain).toContain("● NuwaTex - Lightweight collaborative LaTeX editor");
     expect(plain).toContain("Active: active (running)");
     expect(plain).toContain("2min 5s ago");
     expect(plain).not.toContain("\u001b[");
@@ -76,9 +76,9 @@ describe("CLI argument parsing", () => {
       ]
     };
     const output = formatRequirementsReport(report);
-    expect(output).toContain("TexLite requirements");
+    expect(output).toContain("NuwaTex requirements");
     expect(output).toContain("default commands on PATH");
     expect(output).toContain("One of");
-    expect(output).toContain("does not read a TexLite configuration");
+    expect(output).toContain("does not read a NuwaTex configuration");
   });
 });

@@ -1,4 +1,3 @@
-import { version as texliteVersion } from "../../../package.json";
 import { useTranslation } from "react-i18next";
 import { appPath } from "../basePath";
 
@@ -13,6 +12,6 @@ export function SiteFooter() {
   const currentYear = new Date().getFullYear();
   return <footer className="site-footer">
     <span className="site-footer-tagline">{t("footer.tagline")}</span>
-    <span>{t("footer.copyright", { year: currentYear })} <a href={repositoryUrl} target="_blank" rel="noreferrer">TexLite v{texliteVersion}</a></span>
+    <span>{t("footer.copyright", { year: currentYear })} <a href={repositoryUrl} target="_blank" rel="noreferrer">NuwaTex</a></span>
   </footer>;
 }

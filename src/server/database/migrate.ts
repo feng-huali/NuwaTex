@@ -4,7 +4,7 @@ import { migrateDatabase } from "./migrations.js";
 
 /**
  * Source-checkout migration entry point. Unlike drizzle-kit directly, this
- * reads the same TexLite configuration as the server, including a URL stored
+ * reads the same NuwaTex configuration as the server, including a URL stored
  * in the JSON configuration file or its environment override.
  */
 async function main(): Promise<void> {

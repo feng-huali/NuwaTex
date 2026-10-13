@@ -28,7 +28,7 @@ if (!mainFile || !/\\.tex$/i.test(mainFile)) {
 const stem = path.basename(mainFile).replace(/\\.tex$/i, "");
 const source = fs.readFileSync(mainFile, "utf8");
 fs.mkdirSync(outputDirectory, { recursive: true });
-fs.writeFileSync(path.join(outputDirectory, stem + ".pdf"), "%PDF-1.4\\n% TexLite test fixture\\n" + source);
+fs.writeFileSync(path.join(outputDirectory, stem + ".pdf"), "%PDF-1.4\\n% NuwaTex test fixture\\n" + source);
 fs.writeFileSync(
   path.join(outputDirectory, stem + ".synctex.gz"),
   gzipSync("SyncTeX Version:1\\nInput:1:" + path.resolve(mainFile) + "\\n")

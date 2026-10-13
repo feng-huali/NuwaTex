@@ -244,7 +244,7 @@ interface CommandResult {
   stderr: string;
 }
 
-/** Parse TexLite's explicit TeXcount template, rather than prose output. */
+/** Parse NuwaTex's explicit TeXcount template, rather than prose output. */
 export function parseTexcountOutput(output: string): WordTexcountCounts {
   const report = parseTexcountReport(output, TEXLITE_WORD_REPORT_PREFIX);
   const filesMatch = /Files:\s*(\d+)/i.exec(output);
@@ -265,7 +265,7 @@ export function parseTexcountOutput(output: string): WordTexcountCounts {
 function parseTexcountReport(output: string, prefix: string): ParsedTexcountReport {
   const report = new RegExp(`${prefix}\\|(\\d+)\\|(\\d+)\\|(\\d+)\\|(\\d+)\\|(\\d+)\\|(\\d+)\\|(\\d+)`).exec(output);
   if (!report) {
-    throw new Error("TeXcount did not return TexLite's expected report; a %TC:newtemplate or %TC:template directive may have overridden it.");
+    throw new Error("TeXcount did not return NuwaTex's expected report; a %TC:newtemplate or %TC:template directive may have overridden it.");
   }
   const [, text, header, caption, headerCount, floatCount, inlineMathCount, displayMathCount] = report;
   const errorsMatch = /\(errors:\s*(\d+)\)/i.exec(output);

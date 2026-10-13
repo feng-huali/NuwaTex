@@ -246,7 +246,7 @@ export async function processStatus(config: Config): Promise<ProcessStatus> {
 }
 
 /** Wait for both PM2 and the HTTP service. The health response PID prevents a
- * foreground `texlite serve` process on the same port from being mistaken for
+ * foreground `nuwatex serve` process on the same port from being mistaken for
  * the newly launched managed process. */
 export async function waitForOnline(config: Config, timeoutMs = 50_000): Promise<ManagedProcess> {
   const deadline = Date.now() + timeoutMs;
@@ -271,7 +271,7 @@ export async function waitForOnline(config: Config, timeoutMs = 50_000): Promise
       healthyPid = null;
     }
     if (status === "errored" || status === "stopped") {
-      throw new Error(`PM2 could not start TexLite (current status: ${status}). Run texlite logs to inspect the logs.`);
+      throw new Error(`PM2 could not start NuwaTex (current status: ${status}). Run nuwatex logs to inspect the logs.`);
     }
     await new Promise((resolve) => setTimeout(resolve, 250));
     latest = await managedProcess(config.configPath);
@@ -281,7 +281,7 @@ export async function waitForOnline(config: Config, timeoutMs = 50_000): Promise
   const probeDetail = latestProbe.pid !== null
     ? `health endpoint belongs to PID ${latestProbe.pid}, expected PM2 PID ${expectedPid}`
     : latestProbe.error ?? "health endpoint did not respond";
-  throw new Error(`Timed out waiting for TexLite to become healthy at ${healthUrl(config)} (PM2 status: ${status}; ${probeDetail}). Run texlite logs to investigate.`);
+  throw new Error(`Timed out waiting for NuwaTex to become healthy at ${healthUrl(config)} (PM2 status: ${status}; ${probeDetail}). Run nuwatex logs to investigate.`);
 }
 
 function probeHost(host: string): string {
@@ -337,7 +337,7 @@ export async function streamLogs(config: Config): Promise<void> {
     && environmentOf(process).TEXLITE_CONFIG === path.resolve(config.configPath));
   if (!managed) {
     disconnect();
-    throw new Error("TexLite is not currently managed by PM2. Run texlite start first.");
+    throw new Error("NuwaTex is not currently managed by PM2. Run nuwatex start first.");
   }
   const bus = await callback<{ on: (event: string, listener: (packet: unknown) => void) => void }>((done) => {
     pm2Client!.launchBus((error, value) => done(error ?? null, value as never));

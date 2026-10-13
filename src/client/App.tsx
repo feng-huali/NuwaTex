@@ -4,7 +4,7 @@ import { api } from "./api";
 import type { Project, ProjectListPagination, ProjectTag, SiteConfig, User } from "./types";
 import {
   isProjectHistoryState, mentionIdFromReturn, mentionIdFromSearch, projectIdFromPath, projectIdFromReturn, projectLoginPath, projectPath,
-  type TexLiteHistoryState
+  type NuwaTexHistoryState
 } from "./routes";
 import { loadPdfPreview, loadProjectWorkspace, preloadWorkspace, type WorkspacePreload } from "./workspacePreload";
 import { ChangePassword, Login } from "./pages/AuthPages";
@@ -35,7 +35,7 @@ export function App() {
     const basePath = site?.basePath ?? currentBasePath();
     const returnProjectId = projectIdFromPath(window.location.pathname, basePath);
     if (!returnProjectId) return;
-    const state: TexLiteHistoryState = { texliteRoute: "dashboard" };
+    const state: NuwaTexHistoryState = { texliteRoute: "dashboard" };
     window.history.replaceState(state, "", projectLoginPath(returnProjectId, mentionIdFromSearch(window.location.search), basePath));
     setProjectId(null);
     setProjectMentionId(null);
@@ -50,13 +50,13 @@ export function App() {
     const returnMentionId = mentionIdFromReturn(window.location.search, basePath);
     let targetProjectId: string | null = null;
     if (returnProjectId) {
-      const state: TexLiteHistoryState = { texliteRoute: "project", projectId: returnProjectId, fromDashboard: false };
+      const state: NuwaTexHistoryState = { texliteRoute: "project", projectId: returnProjectId, fromDashboard: false };
       window.history.replaceState(state, "", projectPath(returnProjectId, returnMentionId, basePath));
       setProjectId(returnProjectId);
       setProjectMentionId(returnMentionId);
       targetProjectId = returnProjectId;
     } else if (new URLSearchParams(window.location.search).has("return")) {
-      const state: TexLiteHistoryState = { texliteRoute: "dashboard" };
+      const state: NuwaTexHistoryState = { texliteRoute: "dashboard" };
       window.history.replaceState(state, "", appPath("/"));
       setProjectId(null);
       setProjectMentionId(null);
@@ -79,7 +79,7 @@ export function App() {
     const initialProjectId = projectIdFromPath(window.location.pathname);
     const initialMentionId = mentionIdFromSearch(window.location.search);
     if (initialProjectId && `${window.location.pathname}${window.location.search}` !== projectPath(initialProjectId, initialMentionId)) {
-      const state: TexLiteHistoryState = { texliteRoute: "project", projectId: initialProjectId, fromDashboard: false };
+      const state: NuwaTexHistoryState = { texliteRoute: "project", projectId: initialProjectId, fromDashboard: false };
       window.history.replaceState(state, "", projectPath(initialProjectId, initialMentionId));
     }
     const handlePopState = () => {
@@ -110,7 +110,7 @@ export function App() {
   const openProject = (id: string, mentionId?: string) => {
     const nextPath = projectPath(id, mentionId);
     if (`${window.location.pathname}${window.location.search}` !== nextPath) {
-      const state: TexLiteHistoryState = { texliteRoute: "project", projectId: id, fromDashboard: true };
+      const state: NuwaTexHistoryState = { texliteRoute: "project", projectId: id, fromDashboard: true };
       window.history.pushState(state, "", nextPath);
     }
     preloadRoute(loadProjectWorkspace);
@@ -124,7 +124,7 @@ export function App() {
       window.history.back();
       return;
     }
-    const dashboardState: TexLiteHistoryState = { texliteRoute: "dashboard" };
+    const dashboardState: NuwaTexHistoryState = { texliteRoute: "dashboard" };
     window.history.replaceState(dashboardState, "", appPath("/"));
     setProjectId(null);
     setProjectMentionId(null);
@@ -177,7 +177,7 @@ export function App() {
       preload={workspacePreload?.projectId === projectId ? workspacePreload : null} mentionId={projectMentionId}
       onMentionTargeted={() => {
         const currentState = window.history.state;
-        const state: TexLiteHistoryState = isProjectHistoryState(currentState)
+        const state: NuwaTexHistoryState = isProjectHistoryState(currentState)
           ? { ...currentState, projectId }
           : { texliteRoute: "project", projectId, fromDashboard: false };
         window.history.replaceState(state, "", projectPath(projectId));

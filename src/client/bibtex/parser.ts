@@ -5,7 +5,7 @@ import { styleTags, tags } from "@lezer/highlight";
 import { parser as generatedParser } from "./generatedParser.mjs";
 
 /**
- * The Lezer parser plus the CodeMirror language data TexLite needs for every
+ * The Lezer parser plus the CodeMirror language data NuwaTex needs for every
  * .bib editor: indentation, folding, semantic highlighting and line comments.
  */
 export const parser = LRLanguage.define({

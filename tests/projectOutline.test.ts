@@ -188,7 +188,7 @@ describe("project outline service", () => {
 
 function outlineConfig(root: string): Config {
   return {
-    configPath: path.join(root, "config.json"), siteName: "TexLite", adminEmail: "", host: "127.0.0.1", port: 3000, basePath: "/",
+    configPath: path.join(root, "config.json"), siteName: "NuwaTex", adminEmail: "", host: "127.0.0.1", port: 3000, basePath: "/",
     dataDir: root, database: { driver: "postgresql", url: "postgresql://postgres@127.0.0.1:5432/texlite-test", sslMode: "disable" }, projectsDir: path.join(root, "projects"),
     clientDir: path.join(root, "client"), sessionDays: 1, compileTimeoutMs: 30_000, maxCompileJobs: 1,
     latexmk: "latexmk", defaultEngine: "pdflatex", allowedEngines: ["pdflatex", "xelatex", "lualatex"], extraArgs: [],

@@ -21,7 +21,7 @@ export async function startServer(configPath?: string): Promise<RunningServer> {
   let closeDatabase: (() => Promise<void>) | null = null;
   let app: FastifyInstance | null = null;
   const logs = process.env.TEXLITE_MANAGED_LOGS === "1"
-    ? new LogRotation(config.dataDir, (error) => console.error("TexLite log rotation failed:", error)) : null;
+    ? new LogRotation(config.dataDir, (error) => console.error("NuwaTex log rotation failed:", error)) : null;
   try {
     await logs?.start();
     const environment = await assertEnvironment(config);
@@ -29,7 +29,7 @@ export async function startServer(configPath?: string): Promise<RunningServer> {
     db = database.db;
     closeDatabase = database.close;
     if (await activeAdminCount(db) === 0) {
-      throw new Error("No active administrator found. Run `texlite init` first (or `npm run init` from a source checkout); the server will not start.");
+      throw new Error("No active administrator found. Run `nuwatex init` first (or `npm run init` from a source checkout); the server will not start.");
     }
     app = await buildApp(config, db);
     await app.listen({ host: config.host, port: config.port });

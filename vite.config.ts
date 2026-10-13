@@ -35,7 +35,7 @@ export default defineConfig(({ command }) => {
     },
     root: "src/client",
     build: {
-      // tex-fmt's WASM module uses native top-level await. TexLite targets
+      // tex-fmt's WASM module uses native top-level await. NuwaTex targets
       // current browsers, so retaining it avoids a fragile post-build rewrite.
       target: "esnext",
       outDir: "../../dist/client",

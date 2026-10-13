@@ -2,7 +2,7 @@
 
 ## Harper.js
 
-TexLite uses the bundled [Harper.js](https://github.com/Automattic/harper)
+NuwaTex uses the bundled [Harper.js](https://github.com/Automattic/harper)
 WebAssembly linter for server-side spelling and grammar checks. Its
 documentation is available at
 [writewithharper.com/docs/harperjs/introduction](https://writewithharper.com/docs/harperjs/introduction).
@@ -11,7 +11,7 @@ its upstream license and copyright information.
 
 ## TeXlyre/codemirror-lang-bib
 
-TexLite's internal BibTeX CodeMirror language module derives from
+NuwaTex's internal BibTeX CodeMirror language module derives from
 [TeXlyre/codemirror-lang-bib](https://github.com/TeXlyre/codemirror-lang-bib)
 by Fares Abawi. The derived files retain the upstream MIT notice.
 

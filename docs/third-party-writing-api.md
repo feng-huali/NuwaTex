@@ -1,11 +1,11 @@
-# TexLite 论文写作 API（单人操作）
+# NuwaTex 论文写作 API（单人操作）
 
-本文整理 TexLite 当前可供第三方平台或自动化程序使用的论文写作 HTTP API，覆盖创建项目、管理文件、设置编译器、编译和下载 PDF。范围限定为项目拥有者单人操作，不包括项目成员、批注和实时协作 API。
+本文整理 NuwaTex 当前可供第三方平台或自动化程序使用的论文写作 HTTP API，覆盖创建项目、管理文件、设置编译器、编译和下载 PDF。范围限定为项目拥有者单人操作，不包括项目成员、批注和实时协作 API。
 
 ## 约定
 
-- 所有路径都以 `/api` 开头，并受配置项 `basePath` 影响。例如 `basePath` 为 `/texlite` 时，`/api/projects` 的完整路径是 `/texlite/api/projects`。
-- 以下用 `BASE` 表示站点 origin（如 `https://texlite.example.com`），用 `API` 表示 `BASE + basePath + /api`，用 `PROJECT_ID` 表示项目 UUID。
+- 所有路径都以 `/api` 开头，并受配置项 `basePath` 影响。例如 `basePath` 为 `/nuwatex` 时，`/api/projects` 的完整路径是 `/nuwatex/api/projects`。
+- 以下用 `BASE` 表示站点 origin（如 `https://nuwatex.example.com`），用 `API` 表示 `BASE + basePath + /api`，用 `PROJECT_ID` 表示项目 UUID。
 - 所有受保护的接口使用 Nuwax 的 `SANDBOX_ACCESS_KEY`，通过 `Authorization: Bearer ...` 鉴权。
 - JSON 请求需设置 `Content-Type: application/json`。文件上传使用 `multipart/form-data`，表单字段名为 `file`。
 - 项目内路径均为相对路径，使用 `/` 分隔，例如 `chapters/intro.tex`；不要传操作系统绝对路径。带中文或空格的 query 参数要进行 URL 编码。
@@ -14,13 +14,13 @@
 
 ## 后台自动化：Nuwax 沙箱凭证认证
 
-Nuwax 自动化环境为每次请求提供 `SANDBOX_ACCESS_KEY`。调用 TexLite 时直接设置请求头：
+Nuwax 自动化环境为每次请求提供 `SANDBOX_ACCESS_KEY`。调用 NuwaTex 时直接设置请求头：
 
 ```http
 Authorization: Bearer <SANDBOX_ACCESS_KEY>
 ```
 
-TexLite 在服务端把同一个凭证发送到管理员配置的 Nuwax 用户信息接口。成功响应须包含 `code: "0000"`、`success: true` 和嵌套的 `data.id`，例如：
+NuwaTex 在服务端把同一个凭证发送到管理员配置的 Nuwax 用户信息接口。成功响应须包含 `code: "0000"`、`success: true` 和嵌套的 `data.id`，例如：
 
 ```json
 {
@@ -30,7 +30,7 @@ TexLite 在服务端把同一个凭证发送到管理员配置的 Nuwax 用户�
 }
 ```
 
-`data.id` 应与该用户 OAuth 返回的 `sub` 一致；安全整数 ID 会转为字符串（如 `"1742867341"`），字符串 ID 保留其标识值。TexLite 按 `nuwax_subject` 查找关联用户，并继续检查账号状态、项目权限和存储配额。不会保存该沙箱凭证；每个 Bearer 请求都会重新查询 Nuwax。仅 HTTP 200 不代表认证成功，业务失败响应也会拒绝认证。
+`data.id` 应与该用户 OAuth 返回的 `sub` 一致；安全整数 ID 会转为字符串（如 `"1742867341"`），字符串 ID 保留其标识值。NuwaTex 按 `nuwax_subject` 查找关联用户，并继续检查账号状态、项目权限和存储配额。不会保存该沙箱凭证；每个 Bearer 请求都会重新查询 Nuwax。仅 HTTP 200 不代表认证成功，业务失败响应也会拒绝认证。
 
 ### 验证地址配置
 
@@ -51,7 +51,7 @@ TexLite 在服务端把同一个凭证发送到管理员配置的 Nuwax 用户�
 例如，直接在 Nuwax 自动化环境执行：
 
 ```bash
-API='https://texlite.example.com/api'
+API='https://nuwatex.example.com/api'
 curl -sS -H "Authorization: Bearer $SANDBOX_ACCESS_KEY" "$API/me"
 curl -sS -H "Authorization: Bearer $SANDBOX_ACCESS_KEY" \
   -H 'Content-Type: application/json' \
@@ -60,7 +60,7 @@ curl -sS -H "Authorization: Bearer $SANDBOX_ACCESS_KEY" \
 
 本章后续项目、文件、编译和下载 API 均支持此认证方式。凭证只用于本文列出的论文操作 API 和 `GET /api/me`、`GET /api/config`、`GET /api/health`；用户管理、改密码、成员管理和实时协作等接口不接受沙箱凭证。后台 HTTP 请求不受浏览器同源或 CORS 限制。
 
-前提：该 Nuwax 用户已经在 TexLite 建立账号关联（首次通过 Nuwax 登录 TexLite 后建立）。沙箱认证不会自动注册未关联用户。沙箱凭证由 Nuwax 管理，TexLite 不替调用方刷新它；提供的 Authorization 凭证验证失败时，请求会直接失败。
+前提：该 Nuwax 用户已经在 NuwaTex 建立账号关联（首次通过 Nuwax 登录 NuwaTex 后建立）。沙箱认证不会自动注册未关联用户。沙箱凭证由 Nuwax 管理，NuwaTex 不替调用方刷新它；提供的 Authorization 凭证验证失败时，请求会直接失败。
 
 ### 沙箱 API 完整白名单
 
@@ -108,8 +108,8 @@ curl -sS -H "Authorization: Bearer $SANDBOX_ACCESS_KEY" \
 | HTTP 状态 | code | 含义 |
 |---|---|---|
 | 401 | `SANDBOX_AUTH_INVALID` | Bearer 格式错误，或 Nuwax 拒绝凭证（含 HTTP 200 下的业务失败）。 |
-| 403 | `SANDBOX_ACCOUNT_NOT_LINKED` | 用户尚未关联 TexLite 账号。 |
-| 403 | `AUTH_DISABLED` | TexLite 账号已禁用。 |
+| 403 | `SANDBOX_ACCOUNT_NOT_LINKED` | 用户尚未关联 NuwaTex 账号。 |
+| 403 | `AUTH_DISABLED` | NuwaTex 账号已禁用。 |
 | 403 | `SANDBOX_API_FORBIDDEN` | 此接口不接受沙箱凭证。 |
 | 502 | `SANDBOX_AUTH_RESPONSE_INVALID` | 上游响应不是有效 JSON，成功响应结构不符合要求，或未包含有效的 `data.id`。 |
 | 502/503 | `SANDBOX_AUTH_UNAVAILABLE` | 上游服务失败、限流或无法连接。 |
@@ -117,7 +117,7 @@ curl -sS -H "Authorization: Bearer $SANDBOX_ACCESS_KEY" \
 
 ## 身份与站点能力
 
-- `GET API/me`：携带沙箱 Bearer 凭证，返回 `{ "user": ... }`，用于确认当前凭证对应的 TexLite 用户。
+- `GET API/me`：携带沙箱 Bearer 凭证，返回 `{ "user": ... }`，用于确认当前凭证对应的 NuwaTex 用户。
 - `GET API/config`：公开接口，返回 `basePath`、`maxUploadSizeMB`、`maxCollaborativeFileSizeMB`、`allowedEngines` 等站点能力，自动化程序可据此获取路径、上传限制和可用编译器。
 
 ## 论文项目工作流
@@ -283,23 +283,23 @@ GET API/projects/PROJECT_ID/pdf?mainFile=main.tex&download=1
 
 ## 外部 AI 操作流程
 
-AI 推理和提示词管理由外部平台完成，TexLite 提供项目文件和编译 API。Nuwax 自动化可使用沙箱 Bearer 凭证依次执行：
+AI 推理和提示词管理由外部平台完成，NuwaTex 提供项目文件和编译 API。Nuwax 自动化可使用沙箱 Bearer 凭证依次执行：
 
 1. 查看项目、文件树，并读取目标文件及所需上下文文件。
 2. 在外部 AI 平台生成或修改 LaTeX 内容，再通过文件 PUT 接口写入完整内容。
 3. 调用编译接口，根据返回的诊断和日志继续修改，直到编译成功。
 4. 下载成功编译的 PDF，或打包下载整个项目。
 
-这些操作不依赖浏览器编辑器、选区或光标。TexLite 不提供内置 AI 生成、流式预览、确认写入接口，也无需配置 AI 服务地址或密钥。
+这些操作不依赖浏览器编辑器、选区或光标。NuwaTex 不提供内置 AI 生成、流式预览、确认写入接口，也无需配置 AI 服务地址或密钥。
 
 ## curl 调用骨架（Nuwax 自动化环境）
 
 以下直接使用 Nuwax 注入的 `SANDBOX_ACCESS_KEY`。替换站点、项目 ID；如果站点配置了 basePath，也要包含在 API 地址里。
 
 ```bash
-API='https://texlite.example.com/api'
+API='https://nuwatex.example.com/api'
 
-# 确认沙箱凭证对应的 TexLite 用户
+# 确认沙箱凭证对应的 NuwaTex 用户
 curl -sS -H "Authorization: Bearer $SANDBOX_ACCESS_KEY" "$API/me"
 
 # 创建项目
@@ -320,4 +320,4 @@ curl -sS -H "Authorization: Bearer $SANDBOX_ACCESS_KEY" -o paper.pdf \
 
 ## 当前边界
 
-后台自动化可直接使用 Nuwax 沙箱凭证操作已关联用户有权访问的项目。此凭证与 Nuwax OAuth access token 不同，不应混用；TexLite 不另外签发服务令牌。本文仅描述沙箱 Bearer 认证的 HTTP API，实时 Yjs/WebSocket 协议不在本文范围内。
+后台自动化可直接使用 Nuwax 沙箱凭证操作已关联用户有权访问的项目。此凭证与 Nuwax OAuth access token 不同，不应混用；NuwaTex 不另外签发服务令牌。本文仅描述沙箱 Bearer 认证的 HTTP API，实时 Yjs/WebSocket 协议不在本文范围内。

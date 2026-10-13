@@ -64,7 +64,7 @@ export function loadEditorPreferences(userId: string, projectId: string): Editor
     const storedTexFmtConfig = typeof stored.texFmtConfig === "string" && stored.texFmtConfig.length <= 16 * 1024
       ? stored.texFmtConfig
       : null;
-    // Before TexLite defaulted to no wrapping, an empty string represented the
+    // Before NuwaTex defaulted to no wrapping, an empty string represented the
     // implicit tex-fmt default. Upgrade that legacy default, while preserving
     // a non-empty custom TOML value. Newer saves use the marker so users can
     // still intentionally clear the field and opt back into tex-fmt defaults.

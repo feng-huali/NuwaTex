@@ -10,7 +10,7 @@ import {
 } from "drizzle-orm/pg-core";
 
 /**
- * PostgreSQL schema for the current TexLite data model.
+ * PostgreSQL schema for the current NuwaTex data model.
  *
  * IDs and timestamps intentionally remain text: ISO-8601 timestamps sort
  * correctly, while several security-sensitive identifiers (such as session

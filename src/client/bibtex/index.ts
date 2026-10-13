@@ -1,10 +1,10 @@
 /*
- * Internal BibTeX language support for TexLite.
+ * Internal BibTeX language support for NuwaTex.
  *
  * Derived from TeXlyre/codemirror-lang-bib under the MIT license. See the
  * adjacent LICENSE file. This narrow entry point deliberately leaves generic
  * CodeMirror keymaps, indentation, close-brackets, and autocomplete UI under
- * TexLite's single editor configuration.
+ * NuwaTex's single editor configuration.
  */
 
 import { linter } from "@codemirror/lint";

@@ -107,7 +107,7 @@ function mapLint(source: string, lint: RawHarperLint, offsets: number[]): SpellC
   const { from, to } = resolved;
   const word = source.slice(from, to);
   if (!word.trim() || !/[A-Za-z]/.test(word)) return null;
-  // TexLite promises writing diagnostics, not whitespace/layout suggestions.
+  // NuwaTex promises writing diagnostics, not whitespace/layout suggestions.
   if (lint.kind === "Formatting") return null;
   const kind = lint.kind === "Spelling" || lint.kind === "Typo" ? "spelling" : "grammar";
   const suggestions = lint.suggestions.filter((text, index, values) => index < maxSuggestions && values.indexOf(text) === index);

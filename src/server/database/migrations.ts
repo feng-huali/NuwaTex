@@ -9,7 +9,7 @@ const MIGRATION_LOCK_KEY = "texlite:postgres-schema-migrations";
 
 /**
  * Apply versioned PostgreSQL migrations under an advisory lock. The lock makes
- * a rolling deployment safe: only one TexLite process can change the schema
+ * a rolling deployment safe: only one NuwaTex process can change the schema
  * at a time, while other instances wait for the same migration history.
  */
 export async function migrateDatabase(connection: OrmDatabaseConnection): Promise<void> {

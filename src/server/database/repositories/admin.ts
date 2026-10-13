@@ -71,7 +71,7 @@ export class PostgresAdministratorRepository {
 
   /**
    * Create the first administrator exactly once. The advisory transaction
-   * lock avoids two concurrent `texlite init` invocations both observing an
+   * lock avoids two concurrent `nuwatex init` invocations both observing an
    * empty table and creating duplicate bootstrap administrators.
    */
   async createInitialAdministrator(input: InitialAdministrator): Promise<boolean> {

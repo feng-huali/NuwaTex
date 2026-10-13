@@ -28,7 +28,7 @@ async function openPostgresOrmDatabase(config: PostgresDatabaseConfig): Promise<
   const client = new Pool({
     connectionString: config.url,
     connectionTimeoutMillis: 5_000,
-    application_name: "texlite",
+    application_name: "nuwatex",
     ssl: config.sslMode === "require" ? { rejectUnauthorized: true } : undefined
   });
   // node-postgres emits this event when an idle pooled connection fails. An

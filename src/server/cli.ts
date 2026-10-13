@@ -40,10 +40,10 @@ export interface RequirementsReport {
   ok: boolean;
 }
 
-const HELP = `TexLite ${packageVersion()}
+const HELP = `NuwaTex ${packageVersion()}
 
 Usage:
-  texlite <command> [options]
+  nuwatex <command> [options]
 
 Commands:
   init          Create the configuration, initialize storage, and create the first administrator.
@@ -54,17 +54,17 @@ Commands:
   restart       Restart (or start) the PM2-managed server.
   logs          Stream logs from the PM2-managed server.
   doctor        Check configuration, application state, and host dependencies.
-  requirements  Check host software on PATH without loading TexLite configuration.
+  requirements  Check host software on PATH without loading NuwaTex configuration.
   config        Print the effective configuration as JSON without changing it.
   help          Show this help message.
-  version       Print the installed TexLite version.
+  version       Print the installed NuwaTex version.
 
 Options:
   --config PATH  Use this configuration file instead of TEXLITE_CONFIG or the XDG default.
                  Requirements does not accept this option.
   --json         Print status, doctor, or requirements results as JSON for scripts.
   -h, --help     Show this help message.
-  -v, --version  Print the installed TexLite version.
+  -v, --version  Print the installed NuwaTex version.
 `;
 
 export function parseArgs(args: string[]): CliOptions {
@@ -94,7 +94,7 @@ export function parseArgs(args: string[]): CliOptions {
     command = argument;
   }
   if (command === "requirements" && configPath) {
-    throw new Error("`texlite requirements` does not use --config.");
+    throw new Error("`nuwatex requirements` does not use --config.");
   }
   return { command, configPath, json };
 }
@@ -250,7 +250,7 @@ async function loadValidatedConfig(options: CliOptions) {
 async function assertAdmin(config: Awaited<ReturnType<typeof loadValidatedConfig>>["config"]): Promise<void> {
   const db = await openAdministrationDatabase(config);
   try {
-    if (await db.activeAdminCount() === 0) throw new Error("No active administrator found. Run `texlite init` first; the server will not start.");
+    if (await db.activeAdminCount() === 0) throw new Error("No active administrator found. Run `nuwatex init` first; the server will not start.");
   } finally {
     await db.close();
   }
@@ -292,7 +292,7 @@ async function inspectDoctorApplication(config: Awaited<ReturnType<typeof loadVa
     const administrators = await db.activeAdminCount();
     checks.push(administrators > 0
       ? { name: "Administrator", status: "passed", detail: `${administrators} active administrator${administrators === 1 ? "" : "s"}` }
-      : { name: "Administrator", status: "failed", detail: "No active administrator. Run `texlite init`." });
+      : { name: "Administrator", status: "failed", detail: "No active administrator. Run `nuwatex init`." });
   } catch (error) {
     const detail = errorMessage(error);
     checks.push({ name: "Data and database", status: "failed", detail });
@@ -309,7 +309,7 @@ function inspectClientAssets(config: Awaited<ReturnType<typeof loadValidatedConf
     const stat = fs.statSync(entry);
     if (stat.isFile()) return { name: "Client assets", status: "passed", detail: `Found: ${entry}` };
   } catch { /* Report a concise diagnostic below. */ }
-  return { name: "Client assets", status: "failed", detail: `Missing ${entry}; run \`npm run build\` or reinstall TexLite.` };
+  return { name: "Client assets", status: "failed", detail: `Missing ${entry}; run \`npm run build\` or reinstall NuwaTex.` };
 }
 
 function errorMessage(error: unknown): string {
@@ -357,7 +357,7 @@ async function start(options: CliOptions, restart = false): Promise<void> {
   restart ? await restartManaged(config) : await startManaged(config);
   const managed = await waitForOnline(config);
   const status = managed.description?.pm2_env?.status ?? "unknown";
-  output(`TexLite ${status}: ${config.siteName}`);
+  output(`NuwaTex ${status}: ${config.siteName}`);
   output(`Address: http://${config.host}:${config.port}${basePathHref(config.basePath)}`);
   output(`Configuration file: ${configPath}`);
   output(`PM2 process: ${managed.name}`);
@@ -404,7 +404,7 @@ export function formatDoctorReport(report: DoctorReport, colors = false): string
     { text: shortenDoctorCell(check.detail, 68) }
   ]);
   return [
-    `${colorize("●", titleColor, colors)} ${colors ? `${ANSI.bold}TexLite doctor${ANSI.reset}` : "TexLite doctor"} — ${colorize(title, titleColor, colors)}`,
+    `${colorize("●", titleColor, colors)} ${colors ? `${ANSI.bold}NuwaTex doctor${ANSI.reset}` : "NuwaTex doctor"} — ${colorize(title, titleColor, colors)}`,
     `     Config: ${report.configPath}`,
     `       Data: ${report.dataDir}`,
     `     Client: ${report.clientDir}`,
@@ -415,7 +415,7 @@ export function formatDoctorReport(report: DoctorReport, colors = false): string
     "Host software",
     formatHostSoftwareTable(report.hostTools, colors),
     "",
-    hostRequirementNote(report.hostTools, "start TexLite"),
+    hostRequirementNote(report.hostTools, "start NuwaTex"),
     "Harper.js is bundled and runs in-process; no host Harper installation is required."
   ].join("\n");
 }
@@ -424,13 +424,13 @@ export function formatRequirementsReport(report: RequirementsReport, colors = fa
   const titleColor = report.ok ? "green" : "red";
   const title = report.ok ? "all host requirements passed" : "host requirements need attention";
   return [
-    `${colorize("●", titleColor, colors)} ${colors ? `${ANSI.bold}TexLite requirements${ANSI.reset}` : "TexLite requirements"} — ${colorize(title, titleColor, colors)}`,
+    `${colorize("●", titleColor, colors)} ${colors ? `${ANSI.bold}NuwaTex requirements${ANSI.reset}` : "NuwaTex requirements"} — ${colorize(title, titleColor, colors)}`,
     "",
     "Host software (default commands on PATH)",
     formatHostSoftwareTable(report.hostTools, colors),
     "",
-    hostRequirementNote(report.hostTools, "compile with TexLite"),
-    "This command does not read a TexLite configuration, data directory, database, or administrator state.",
+    hostRequirementNote(report.hostTools, "compile with NuwaTex"),
+    "This command does not read a NuwaTex configuration, data directory, database, or administrator state.",
     "Harper.js is bundled and runs in-process; no host Harper installation is required."
   ].join("\n");
 }
@@ -519,7 +519,7 @@ function statusAppearance(status: string): {
 export function formatProcessStatus(status: ProcessStatus, colors = false): string {
   const appearance = statusAppearance(status.status);
   const bullet = colorize("●", appearance.color, colors);
-  const title = colors ? `${ANSI.bold}TexLite${ANSI.reset}` : "TexLite";
+  const title = colors ? `${ANSI.bold}NuwaTex${ANSI.reset}` : "NuwaTex";
   const active = colorize(appearance.active, appearance.color, colors);
   const health = colorize(appearance.health, appearance.color, colors);
   const loaded = status.pm2Status === "missing"
@@ -548,7 +548,7 @@ export function formatProcessStatus(status: ProcessStatus, colors = false): stri
 async function stop(options: CliOptions): Promise<void> {
   const { config } = await loadValidatedConfig(options);
   const managed = await stopManaged(config.configPath);
-  output(managed.description ? `TexLite stopped: ${managed.name}` : `TexLite is not running: ${managed.name}`);
+  output(managed.description ? `NuwaTex stopped: ${managed.name}` : `NuwaTex is not running: ${managed.name}`);
 }
 
 async function run(options: CliOptions): Promise<void> {

@@ -18,7 +18,7 @@ describe("application mounted below the origin root", () => {
   beforeAll(async () => {
     root = fs.mkdtempSync(path.join(os.tmpdir(), "texlite-base-path-app-"));
     const config: Config = {
-      configPath: path.join(root, "config.json"), siteName: "Mounted TexLite", adminEmail: "",
+      configPath: path.join(root, "config.json"), siteName: "Mounted NuwaTex", adminEmail: "",
       host: "127.0.0.1", port: 3000, basePath: "/tools/texlite",
       dataDir: root, databasePath: path.join(root, "texlite.db"), projectsDir: path.join(root, "projects"),
       clientDir: path.join(root, "client"), sessionDays: 1, compileTimeoutMs: 30_000, maxCompileJobs: 1,
@@ -54,7 +54,7 @@ describe("application mounted below the origin root", () => {
     expect(health.statusCode).toBe(200);
 
     const publicConfig = await app.inject({ method: "GET", url: "/tools/texlite/api/config" });
-    expect(publicConfig.json()).toMatchObject({ siteName: "Mounted TexLite", basePath: "/tools/texlite" });
+    expect(publicConfig.json()).toMatchObject({ siteName: "Mounted NuwaTex", basePath: "/tools/texlite" });
 
     const mountedRoot = await app.inject({ method: "GET", url: "/tools/texlite" });
     expect(mountedRoot.statusCode).toBe(200);

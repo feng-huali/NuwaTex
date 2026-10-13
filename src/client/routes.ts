@@ -54,12 +54,12 @@ export function mentionIdFromReturn(search: string, basePath = currentBasePath()
   return url && projectIdFromPath(url.pathname, basePath) ? mentionIdFromSearch(url.search) : null;
 }
 
-export type TexLiteHistoryState =
+export type NuwaTexHistoryState =
   | { texliteRoute: "dashboard" }
   | { texliteRoute: "project"; projectId: string; fromDashboard: boolean };
 
-export function isProjectHistoryState(value: unknown): value is Extract<TexLiteHistoryState, { texliteRoute: "project" }> {
+export function isProjectHistoryState(value: unknown): value is Extract<NuwaTexHistoryState, { texliteRoute: "project" }> {
   if (!value || typeof value !== "object") return false;
-  const state = value as Partial<Extract<TexLiteHistoryState, { texliteRoute: "project" }>>;
+  const state = value as Partial<Extract<NuwaTexHistoryState, { texliteRoute: "project" }>>;
   return state.texliteRoute === "project" && typeof state.projectId === "string" && typeof state.fromDashboard === "boolean";
 }

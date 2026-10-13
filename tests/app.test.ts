@@ -38,7 +38,7 @@ function namedCookie(headers: OutgoingHttpHeaders, name: string): string {
   return cookie.split(";")[0];
 }
 
-describe("texLite application", () => {
+describe("NuwaTex application", () => {
   const execFileAsync = promisify(execFile);
   let root: string;
   let config: Config;
@@ -50,7 +50,7 @@ describe("texLite application", () => {
   beforeAll(async () => {
     root = fs.mkdtempSync(path.join(os.tmpdir(), "texlite-test-"));
     config = {
-      configPath: path.join(root, "config.json"), siteName: "Test texLite", adminEmail: "admin@example.test",
+      configPath: path.join(root, "config.json"), siteName: "Test NuwaTex", adminEmail: "admin@example.test",
       host: "127.0.0.1", port: 3000, basePath: "/", dataDir: root, databasePath: path.join(root, "texlite.db"),
       trustedProxyIps: ["10.0.0.2"],
       projectsDir: path.join(root, "projects"), clientDir: path.join(root, "client"), sessionDays: 1,
@@ -160,7 +160,7 @@ describe("texLite application", () => {
     expect(unauthenticated.json()).toMatchObject({ code: "AUTH_REQUIRED" });
     const publicConfig = await app.inject({ method: "GET", url: "/api/config" });
     expect(publicConfig.json()).toMatchObject({
-      siteName: "Test texLite", adminEmail: "admin@example.test", minPasswordLength: MIN_PASSWORD_LENGTH, nuwaxOAuthEnabled: true,
+      siteName: "Test NuwaTex", adminEmail: "admin@example.test", minPasswordLength: MIN_PASSWORD_LENGTH, nuwaxOAuthEnabled: true,
       maxCitationBibtexBytes: MAX_CITATION_BIBTEX_BYTES
     });
   });

@@ -14,7 +14,7 @@ export function currentBasePath(): string {
   return detectedBasePath;
 }
 
-/** Build an origin-local URL that remains inside this TexLite deployment. */
+/** Build an origin-local URL that remains inside this NuwaTex deployment. */
 export function appPath(pathname: string, basePath = detectedBasePath): string {
   return withBasePath(basePath, pathname);
 }
@@ -24,7 +24,7 @@ export function stripAppBasePath(pathname: string, basePath = detectedBasePath):
   return withoutBasePath(basePath, pathname);
 }
 
-/** Keep browser persistence isolated when several TexLite instances share an origin. */
+/** Keep browser persistence isolated when several NuwaTex instances share an origin. */
 export function scopedStorageKey(key: string, basePath = detectedBasePath): string {
   return basePath === ROOT_BASE_PATH ? key : `${key}:base=${encodeURIComponent(basePath)}`;
 }

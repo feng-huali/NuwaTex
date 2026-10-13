@@ -18,7 +18,7 @@ interface CachedProjectBytes {
 /**
  * In-process accounting for durable user-controlled project source files.
  *
- * TexLite deliberately keeps generated compiler data and retained history in
+ * NuwaTex deliberately keeps generated compiler data and retained history in
  * their own bounded stores.  This service covers the otherwise unbounded
  * user-controlled input path: projects, imports, copied projects, uploads
  * and source edits.  The database is reconciled on each owner lookup, while
@@ -28,7 +28,7 @@ interface CachedProjectBytes {
 export class ProjectQuotaService {
   private readonly cachedProjectBytes = new Map<string, CachedProjectBytes>();
   /**
-   * One TexLite process owns a data directory (enforced by instanceLock), so
+   * One NuwaTex process owns a data directory (enforced by instanceLock), so
    * an in-process per-owner queue is enough to make asynchronous imports,
    * copies and deletion observe the same project-count/storage snapshot.
    */

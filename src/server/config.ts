@@ -28,7 +28,7 @@ export interface NuwaxOAuthConfig {
 
 /** Effective values used when the corresponding file/env setting is omitted. */
 export const CONFIG_DEFAULTS = {
-  siteName: "TexLite",
+  siteName: "NuwaTex",
   adminEmail: "",
   host: "127.0.0.1",
   port: 3000,
@@ -86,7 +86,7 @@ export interface Config {
   basePath: string;
   /** Direct reverse-proxy IPs/CIDRs allowed to supply forwarding headers. */
   trustedProxyIps?: string[];
-  /** Exact HTTPS origins permitted to embed TexLite. */
+  /** Exact HTTPS origins permitted to embed NuwaTex. */
   allowedIframeOrigins?: string[];
   dataDir: string;
   /** PostgreSQL is the only supported application database. */
@@ -249,7 +249,7 @@ export function loadBasePath(configPathOverride?: string): string {
 /** Validate an already materialized configuration (useful for startup/tests). */
 export function validateConfig(config: Config): void {
   if (!config.dataDir || path.parse(config.dataDir).root === config.dataDir) {
-    throw configurationError("storage.dataDir", "must be a non-root directory where TexLite can store data");
+    throw configurationError("storage.dataDir", "must be a non-root directory where NuwaTex can store data");
   }
   validateDirectoryTarget("storage.dataDir", config.dataDir, true);
   validateDirectoryTarget("projects directory", config.projectsDir, true);

@@ -51,7 +51,7 @@ interface AccessTokenContext {
 
 /**
  * Server-side Nuwax client. Access and refresh tokens never leave this class;
- * only the short-lived TexLite session is sent to the browser.
+ * only the short-lived NuwaTex session is sent to the browser.
  */
 export class NuwaxOAuthService {
   private readonly pendingRefreshes = new Map<string, Promise<AccessTokenContext>>();

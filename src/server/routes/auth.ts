@@ -291,7 +291,7 @@ function sendOAuthPopupSuccess(reply: FastifyReply, config: Config, ticket: stri
     .header("Cache-Control", "no-store")
     .header("Referrer-Policy", "no-referrer")
     .type("text/html; charset=utf-8")
-    .send(`<!doctype html><title>TexLite</title><script>if(window.opener&&!window.opener.closed){window.opener.postMessage(${event},${target});window.close();}</script><p>Sign-in completed. You may close this window.</p>`);
+    .send(`<!doctype html><title>NuwaTex</title><script>if(window.opener&&!window.opener.closed){window.opener.postMessage(${event},${target});window.close();}</script><p>Sign-in completed. You may close this window.</p>`);
 }
 
 function safeReturnPath(value: unknown, basePath = "/"): string {

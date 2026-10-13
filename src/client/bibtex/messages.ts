@@ -3,7 +3,7 @@
 /**
  * UI text is injected rather than embedded in the parser, completion, or
  * diagnostics modules. This keeps the BibTeX engine reusable and lets
- * TexLite localize every visible message.
+ * NuwaTex localize every visible message.
  */
 export interface BibtexMessages {
   syntaxError(): string;

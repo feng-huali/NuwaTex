@@ -1,5 +1,5 @@
 {
-  "siteName": "TexLite",
+  "siteName": "NuwaTex",
   "adminEmail": "admin@example.com",
   "server": {
     "host": "127.0.0.1",
@@ -13,7 +13,7 @@
   },
   "database": {
     "driver": "postgresql",
-    "url": "postgresql://postgres:CHANGE_ME@127.0.0.1:5432/texlite-demo",
+    "url": "postgresql://postgres:CHANGE_ME@127.0.0.1:5432/nuwatex-demo",
     "sslMode": "disable"
   },
   "sandboxAuth": {

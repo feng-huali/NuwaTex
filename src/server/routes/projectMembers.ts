@@ -166,7 +166,7 @@ export function registerProjectMemberRoutes(app: FastifyInstance, context: Proje
     if (target.disabled) return apiError(reply, 404, "INVITATION_RECIPIENT_NOT_FOUND");
     if (target.id === project.owner_id) return apiError(reply, 400, "INVITATION_OWNER_FORBIDDEN");
     // The phone is used only for this exact Nuwax lookup. The durable
-    // invitation stores the returned TexLite user ID and never stores the phone.
+    // invitation stores the returned NuwaTex user ID and never stores the phone.
     const recipientUserId = target.id;
     const email = target.email;
     const permission = body.permission === "edit" ? "edit" : "read";

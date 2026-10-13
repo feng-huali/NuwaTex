@@ -40,7 +40,7 @@ describe("iframe login policy", () => {
     expect(iframeFrameAncestorsPolicy(current)).toBe("frame-ancestors 'self' https://portal.example.test");
   });
 
-  it("accepts collaboration sockets only from the TexLite document origin", () => {
+  it("accepts collaboration sockets only from the NuwaTex document origin", () => {
     const request = {
       protocol: "https",
       host: "texlite.example.test",

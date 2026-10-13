@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { parseTexcountOutput } from "../src/server/texcount.js";
 
 describe("TeXcount output", () => {
-  it("parses TexLite's fixed report template and computes the word total", () => {
+  it("parses NuwaTex's fixed report template and computes the word total", () => {
     const result = parseTexcountOutput("__TEXLITE_TEXCOUNT_WORDS__|128|12|7|4|2|9|3");
     expect(result).toEqual({
       textWords: 128,
@@ -24,7 +24,7 @@ describe("TeXcount output", () => {
     expect(result.totalWords).toBe(0);
   });
 
-  it("rejects output that does not contain TexLite's report template", () => {
+  it("rejects output that does not contain NuwaTex's report template", () => {
     expect(() => parseTexcountOutput("TeXcount failed")).toThrow(/expected report/);
   });
 });

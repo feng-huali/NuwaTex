@@ -29,7 +29,7 @@ describe("instance lock", () => {
       database: { driver: "postgresql", url: "postgresql://postgres@127.0.0.1:5432/texlite-test", sslMode: "disable" },
       projectsDir: path.join(dataDir, "projects"),
       clientDir: "/test/client",
-      siteName: "TexLite Test",
+      siteName: "NuwaTex Test",
       adminEmail: "admin@example.com",
       sessionDays: 7,
       maxUploadBytes: 50 * 1024 * 1024,
@@ -82,7 +82,7 @@ describe("instance lock", () => {
 
     const lock1 = acquireDataDirectoryLock(config1);
     try {
-      expect(() => acquireDataDirectoryLock(config2)).toThrow(/already locked by another TexLite instance/);
+      expect(() => acquireDataDirectoryLock(config2)).toThrow(/already locked by another NuwaTex instance/);
     } finally {
       lock1.release();
     }
@@ -124,7 +124,7 @@ describe("instance lock", () => {
     const lockPath = path.join(root, LOCK_FILE_NAME);
     fs.mkdirSync(lockPath, { mode: 0o700 });
 
-    expect(() => acquireDataDirectoryLock(mockConfig(root))).toThrow(/being initialized by another TexLite instance/);
+    expect(() => acquireDataDirectoryLock(mockConfig(root))).toThrow(/being initialized by another NuwaTex instance/);
     expect(fs.existsSync(lockPath)).toBe(true);
   });
 });

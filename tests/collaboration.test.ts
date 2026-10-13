@@ -40,7 +40,7 @@ describe("project collaboration", () => {
   beforeAll(async () => {
     root = fs.mkdtempSync(path.join(os.tmpdir(), "texlite-collaboration-"));
     config = {
-      configPath: path.join(root, "config.json"), siteName: "Collaborative texLite", adminEmail: "admin@example.test",
+      configPath: path.join(root, "config.json"), siteName: "Collaborative NuwaTex", adminEmail: "admin@example.test",
       host: "127.0.0.1", port: 3000, basePath: "/", dataDir: root, databasePath: path.join(root, "texlite.db"),
       projectsDir: path.join(root, "projects"), clientDir: path.join(root, "missing-client"), sessionDays: 1,
       compileTimeoutMs: 30_000, maxCompileJobs: 1, latexmk: "latexmk", defaultEngine: "pdflatex",

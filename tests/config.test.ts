@@ -86,7 +86,7 @@ describe("configuration", () => {
     expect(config.maxSourceStorageBytesPerUser).toBe(4096 * 1024 * 1024);
   });
 
-  it("uses TexLite as the default site name", () => {
+  it("uses NuwaTex as the default site name", () => {
     root = fs.mkdtempSync(path.join(os.tmpdir(), "texlite-config-default-"));
     const configPath = path.join(root, "texlite.config.json");
     fs.writeFileSync(configPath, JSON.stringify({}));
@@ -95,7 +95,7 @@ describe("configuration", () => {
     delete process.env.TEXLITE_SITE_NAME;
     const config = loadConfig();
     expect(config).toMatchObject({
-      siteName: "TexLite", host: "127.0.0.1", port: 3000, basePath: "/", sessionDays: 7,
+      siteName: "NuwaTex", host: "127.0.0.1", port: 3000, basePath: "/", sessionDays: 7,
       trustedProxyIps: ["127.0.0.1", "::1"],
       compileTimeoutMs: 120_000, maxCompileJobs: 10, defaultEngine: "xelatex",
       allowedEngines: ["pdflatex", "xelatex", "lualatex"], maxUploadBytes: 50 * 1024 * 1024,

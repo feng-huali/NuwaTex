@@ -1,27 +1,27 @@
-# TexLite 生产环境初始化与启动
+# NuwaTex 生产环境初始化与启动
 
 本文说明 PostgreSQL 全新部署时的初始化流程。假设 PostgreSQL 服务已经运行，但
-目标数据库为空，尚未创建任何 TexLite 数据表。
+目标数据库为空，尚未创建任何 NuwaTex 数据表。
 
 ## 1. 创建空 PostgreSQL 数据库
 
 先创建数据库和应用使用的数据库用户。例如：
 
 ```text
-数据库：texlite
-用户：texlite
+数据库：nuwatex
+用户：nuwatex
 ```
 
 数据库用户至少需要具备连接数据库、创建表和修改表结构的权限。
 
-不需要手动创建 TexLite 的表，应用的版本化迁移会自动完成这一步。
+不需要手动创建 NuwaTex 的表，应用的版本化迁移会自动完成这一步。
 
 ## 2. 准备生产配置
 
 建议把配置文件放在应用目录之外，例如：
 
 ```text
-/etc/texlite/texlite.config.json
+/etc/nuwatex/texlite.config.json
 ```
 
 配置文件至少需要包含：
@@ -33,7 +33,7 @@
     "port": 3000
   },
   "storage": {
-    "dataDir": "/var/lib/texlite/data"
+    "dataDir": "/var/lib/nuwatex/data"
   },
   "database": {
     "driver": "postgresql",
@@ -45,14 +45,14 @@
 将数据库连接串放在环境变量中，不要提交到 Git：
 
 ```bash
-export TEXLITE_CONFIG=/etc/texlite/texlite.config.json
-export TEXLITE_DATABASE_URL='postgresql://texlite:密码@127.0.0.1:5432/texlite'
+export TEXLITE_CONFIG=/etc/nuwatex/texlite.config.json
+export TEXLITE_DATABASE_URL='postgresql://nuwatex:密码@127.0.0.1:5432/nuwatex'
 ```
 
 如果密码中包含 `@`、`:`、`/`、`#` 等特殊字符，需要按 URL 规则进行编码。
 
 `storage.dataDir` 只保存项目文件、编译产物、回收站和实例锁；数据库表由 PostgreSQL
-管理。该目录必须允许 TexLite 运行用户读写，并应纳入备份策略。
+管理。该目录必须允许 NuwaTex 运行用户读写，并应纳入备份策略。
 
 ## 3. 构建程序
 
@@ -81,7 +81,7 @@ npm run init
 
 初始化命令会自动完成：
 
-1. 读取并校验 TexLite 配置；
+1. 读取并校验 NuwaTex 配置；
 2. 连接 PostgreSQL；
 3. 执行 `drizzle/postgres/` 中尚未执行的迁移；
 4. 创建数据库表；
@@ -123,7 +123,7 @@ npm run pm2:save
 PM2 前先加载生产环境变量：
 
 ```bash
-source /etc/texlite/texlite.env
+source /etc/nuwatex/nuwatex.env
 npm run pm2:start
 npm run pm2:save
 ```
@@ -153,7 +153,7 @@ node dist/server/database/migrate.js
 npm run db:migrate:postgres
 ```
 
-`db:migrate:postgres` 使用 TexLite 的实际配置和数据库连接；它不是生成迁移文件的命令。
+`db:migrate:postgres` 使用 NuwaTex 的实际配置和数据库连接；它不是生成迁移文件的命令。
 
 ## 7. 首次部署流程总结
 
@@ -166,7 +166,7 @@ npm ci && npm run build
         ↓
 node dist/server/cli.js init
         ↓
-启动 TexLite
+启动 NuwaTex
 ```
 
 首次部署不需要手动创建表，也不需要先执行 `db:generate:postgres`。只有修改数据库

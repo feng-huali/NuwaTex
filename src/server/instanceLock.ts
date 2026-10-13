@@ -121,13 +121,13 @@ export function acquireDataDirectoryLock(config: Config): DataDirectoryLock {
       const existing = readDataDirectoryLock(config.dataDir);
       if (existing && isProcessAlive(existing.pid)) {
         throw new Error(
-          `The data directory is already locked by another TexLite instance:\n` +
+          `The data directory is already locked by another NuwaTex instance:\n` +
           `  - PID: ${existing.pid}\n` +
           `  - Config: ${existing.configPath}\n` +
           `  - Address: http://${existing.host}:${existing.port}${basePathHref(existing.basePath ?? "/")}\n` +
           `  - Started: ${existing.startedAt}\n` +
           `  - Data directory: ${config.dataDir}\n` +
-          `Do not run multiple TexLite instances with the same data directory.`
+          `Do not run multiple NuwaTex instances with the same data directory.`
         );
       }
 
@@ -138,7 +138,7 @@ export function acquireDataDirectoryLock(config: Config): DataDirectoryLock {
         try {
           const stat = fs.statSync(lockPath);
           if (Date.now() - stat.mtimeMs < 5_000) {
-            throw new Error("The data directory lock is being initialized by another TexLite instance. Try again shortly.");
+            throw new Error("The data directory lock is being initialized by another NuwaTex instance. Try again shortly.");
           }
         } catch (error: unknown) {
           if (error instanceof Error && error.message.startsWith("The data directory lock is being initialized")) throw error;
@@ -155,5 +155,5 @@ export function acquireDataDirectoryLock(config: Config): DataDirectoryLock {
     }
   }
 
-  throw new Error(`Unable to acquire the TexLite data directory lock: ${lockPath}`);
+  throw new Error(`Unable to acquire the NuwaTex data directory lock: ${lockPath}`);
 }

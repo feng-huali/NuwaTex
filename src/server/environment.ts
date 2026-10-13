@@ -13,7 +13,7 @@ export interface EnvironmentCommand {
 export type EnvironmentRequirement = "required" | "one-of" | "optional";
 export type EnvironmentToolStatus = "installed" | "missing" | "failed";
 
-/** A host-tool probe used by `texlite doctor`. */
+/** A host-tool probe used by `nuwatex doctor`. */
 export interface EnvironmentTool {
   id: string;
   name: string;
@@ -49,17 +49,17 @@ const commandProbeTimeoutMs = 10_000;
 const maxCommandOutputBytes = 64 * 1024;
 
 /**
- * Probe all tools that are relevant to a TexLite host. Optional tools are
+ * Probe all tools that are relevant to a NuwaTex host. Optional tools are
  * included deliberately: their absence must be visible in `doctor`, but does
- * not prevent TexLite from starting.
+ * not prevent NuwaTex from starting.
  */
 export async function inspectHostEnvironment(config: Config): Promise<EnvironmentTool[]> {
   return Promise.all(hostToolDefinitions(config).map((tool) => inspectTool(tool)));
 }
 
 /**
- * Probe the default commands on PATH without loading a TexLite configuration.
- * This supports pre-installation checks through `texlite requirements`.
+ * Probe the default commands on PATH without loading a NuwaTex configuration.
+ * This supports pre-installation checks through `nuwatex requirements`.
  */
 export async function inspectHostRequirements(): Promise<EnvironmentTool[]> {
   return Promise.all(hostRequirementToolDefinitions().map((tool) => inspectTool(tool)));
@@ -90,7 +90,7 @@ export async function assertEnvironment(config: Config): Promise<EnvironmentComm
 
 function requiredToolDefinitions(config: Config): EnvironmentToolDefinition[] {
   return [
-    { id: "node", name: `Node.js ${MIN_NODE_MAJOR}+`, command: "node", requirement: "required", purpose: "TexLite runtime" },
+    { id: "node", name: `Node.js ${MIN_NODE_MAJOR}+`, command: "node", requirement: "required", purpose: "NuwaTex runtime" },
     { id: "latexmk", name: "latexmk", command: config.latexmk, requirement: "required", purpose: "LaTeX compilation" },
     ...config.allowedEngines.map((command) => ({
       id: `engine:${command}`, name: command, command, requirement: "required" as const,
@@ -108,7 +108,7 @@ function hostToolDefinitions(config: Config): EnvironmentToolDefinition[] {
 
 function hostRequirementToolDefinitions(): EnvironmentToolDefinition[] {
   return [
-    { id: "node", name: `Node.js ${MIN_NODE_MAJOR}+`, command: "node", requirement: "required", purpose: "TexLite runtime" },
+    { id: "node", name: `Node.js ${MIN_NODE_MAJOR}+`, command: "node", requirement: "required", purpose: "NuwaTex runtime" },
     { id: "latexmk", name: "latexmk", command: "latexmk", requirement: "required", purpose: "LaTeX compilation" },
     ...LATEX_ENGINES.map((command) => ({
       id: `engine:${command}`, name: command, command, requirement: "one-of" as const,
@@ -154,7 +154,7 @@ function inspectNode(tool: EnvironmentToolDefinition): EnvironmentTool {
     ...identity,
     status: "failed",
     version: process.version || null,
-    detail: `TexLite requires Node.js ${MIN_NODE_MAJOR} or newer.`
+    detail: `NuwaTex requires Node.js ${MIN_NODE_MAJOR} or newer.`
   };
 }
 

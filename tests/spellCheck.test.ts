@@ -247,19 +247,19 @@ Visible wrng prose.`;
   });
 
   it("honours the project dictionary after Harper returns its diagnostics", async () => {
-    const source = "TexLite wrng";
-    const lints = [rawLint(source, "TexLite"), rawLint(source, "wrng")];
-    expect((await mapLatexLints(source, [], lints)).map((issue) => issue.word)).toEqual(["TexLite", "wrng"]);
-    expect((await mapLatexLints(source, ["TexLite"], lints)).map((issue) => issue.word)).toEqual(["wrng"]);
+    const source = "NuwaTex wrng";
+    const lints = [rawLint(source, "NuwaTex"), rawLint(source, "wrng")];
+    expect((await mapLatexLints(source, [], lints)).map((issue) => issue.word)).toEqual(["NuwaTex", "wrng"]);
+    expect((await mapLatexLints(source, ["NuwaTex"], lints)).map((issue) => issue.word)).toEqual(["wrng"]);
   });
 
   it("does not reuse a client result across different LaTeX file types", async () => {
-    const source = "TexLite wrng";
+    const source = "NuwaTex wrng";
     const texLints = [rawLint(source, "wrng")];
-    const styLints = [rawLint(source, "TexLite")];
+    const styLints = [rawLint(source, "NuwaTex")];
 
     expect((await mapLatexLints(source, [], texLints, "main.tex")).map((issue) => issue.word)).toEqual(["wrng"]);
-    expect((await mapLatexLints(source, [], styLints, "theme.sty")).map((issue) => issue.word)).toEqual(["TexLite"]);
+    expect((await mapLatexLints(source, [], styLints, "theme.sty")).map((issue) => issue.word)).toEqual(["NuwaTex"]);
   });
 
   it("submits a newer revision before an older request resolves", async () => {

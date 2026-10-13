@@ -21,7 +21,7 @@ type CookieRequest = { protocol: string };
 
 /**
  * An explicit parent-origin allow-list is the opt-in for third-party iframe
- * login. Without it, TexLite retains its original first-party-only policy.
+ * login. Without it, NuwaTex retains its original first-party-only policy.
  */
 export function iframeLoginEnabled(config: Config): boolean {
   return Boolean(config.allowedIframeOrigins?.length);
@@ -30,7 +30,7 @@ export function iframeLoginEnabled(config: Config): boolean {
 /**
  * Embedded cookies are set from a response made inside the iframe. Their
  * partition key is therefore the outer site's schemeful origin rather than
- * TexLite's top-level popup origin.
+ * NuwaTex's top-level popup origin.
  */
 export function authenticationCookieOptions(
   config: Config,
@@ -83,7 +83,7 @@ export function hasIframeCsrfHeader(request: Pick<FastifyRequest, "headers">): b
 
 /**
  * Browser WebSockets carry cookies but cannot attach the request header above.
- * In iframe mode, accept them only from the TexLite document's own origin;
+ * In iframe mode, accept them only from the NuwaTex document's own origin;
  * the parent page never needs to open the collaboration socket directly.
  */
 export function hasOwnRequestOrigin(request: Pick<FastifyRequest, "headers" | "host" | "protocol">): boolean {
