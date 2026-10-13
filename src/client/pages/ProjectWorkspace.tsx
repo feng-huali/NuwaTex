@@ -129,6 +129,8 @@ export function ProjectWorkspace({ site, user, projectId, preload, mentionId = n
   const [sidePanel, setSidePanel] = useState<"comments" | "settings" | null>(null);
   const [targetMention, setTargetMention] = useState<CommentMention | null>(null);
   const [pendingCommentFocus, setPendingCommentFocus] = useState<Comment | null>(null);
+  // Drawer-only focus must not select the entire annotated range in the editor.
+  const [sourceCommentTarget, setSourceCommentTarget] = useState<{ id: string; filePath: string; nonce: number } | null>(null);
   const [filesCollapsed, setFilesCollapsed] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -229,6 +231,7 @@ export function ProjectWorkspace({ site, user, projectId, preload, mentionId = n
     handledMentionTargetId.current = null;
     setTargetMention(null);
     setPendingCommentFocus(null);
+    setSourceCommentTarget(null);
     setWordCountOpen(false);
     setWordCountBusy(false);
     setWordCountError("");
@@ -1043,6 +1046,7 @@ export function ProjectWorkspace({ site, user, projectId, preload, mentionId = n
     return rootIncludeState.path === activeMainFile && rootIncludeState.hasIncludes;
   }, [activeMainFile, rootIncludeState]);
   const focusReviewComment = (comment: Comment): void => {
+    setSourceCommentTarget(null);
     setSidePanel("comments");
     // A review selection is a file-scoped command, not a durable editor
     // selection. Wait for both the source and its matching comment resource.
@@ -1052,6 +1056,18 @@ export function ProjectWorkspace({ site, user, projectId, preload, mentionId = n
       jumpToSource(comment.filePath, comment.startLine, 1);
     }
   };
+  const openCommentFromSource = (id: string): void => {
+    const comment = comments.find((item) => item.id === id && item.filePath === activeFile);
+    if (!comment || comment.resolved || comment.orphaned) return;
+    setPendingCommentFocus(null);
+    setFocusComment(null);
+    setTargetMention(null);
+    setSourceCommentTarget((previous) => ({ id: comment.id, filePath: comment.filePath, nonce: (previous?.nonce ?? 0) + 1 }));
+    setSidePanel("comments");
+  };
+  useEffect(() => {
+    setSourceCommentTarget(null);
+  }, [activeFile]);
   useEffect(() => {
     if (!pendingCommentFocus) return;
     const canonical = resolvePendingCommentFocus(
@@ -1355,7 +1371,7 @@ export function ProjectWorkspace({ site, user, projectId, preload, mentionId = n
         handleTabKeyDown={handleTabKeyDown} updateEditorContent={updateEditorContent}
         setSelection={(selectedText, startOffset, endOffset) => setSelection({ selectedText, startOffset, endOffset })}
         onAddComment={(selectedText, startOffset, endOffset, source) => openComment({ selectedText, startOffset, endOffset }, source)}
-        onCommentClick={(id) => { const comment = comments.find((item) => item.id === id); if (comment) focusReviewComment(comment); }}
+        onCommentClick={openCommentFromSource}
         onSpellCheckReplace={replaceSpellCheckIssue} onReferenceNavigate={navigateToReference} onCursor={updateSourceCursor}
       />}
       {showPreview && <WorkspacePreviewPanel
@@ -1385,7 +1401,9 @@ export function ProjectWorkspace({ site, user, projectId, preload, mentionId = n
         site={site} files={files} currentUserId={user.id} comments={reviewComments} commentsLoading={reviewCommentsLoading}
         commentsError={reviewCommentsError} onRetryComments={retryReviewComments} activeFile={activeFile}
         hasProjectCommentsScope={hasProjectCommentsScope} commentScope={commentScope} onCommentScopeChange={setCommentScope}
-        focusedCommentId={focusComment?.id} onClearFocusComment={() => setFocusComment(null)} unreadMentions={unreadMentions}
+        focusedCommentId={sourceCommentTarget?.filePath === activeFile ? sourceCommentTarget.id : focusComment?.id}
+        commentFocusNonce={sourceCommentTarget?.nonce}
+        onClearFocusComment={() => { setSourceCommentTarget(null); setFocusComment(null); setTargetMention(null); }} unreadMentions={unreadMentions}
         onMarkMentionRead={markVisibleMentionRead} onMarkAllMentionsRead={markAllVisibleMentionsRead}
         targetCommentId={targetMention?.commentId} targetReplyId={targetMention?.replyId}
         onFocusComment={focusReviewComment} onToggleComment={toggleComment}
