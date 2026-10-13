@@ -322,7 +322,7 @@
     "denyProjectCreationTitle": "Remove project creation", "denyProjectCreationDescription": "Remove @{{username}}’s permission to create new projects? Their existing project access is unchanged.", "denyProjectCreationConfirm": "Remove permission"
   },
   "compileControls": { "cancel": "Cancel compile", "cancelling": "Cancelling…", "cancelled": "Compilation cancelled." },
-  "footer": { "tagline": "LaTeX collaboration platform", "copyright": "© {{year}}", "modifiedFromPrefix": "Modified from ", "modifiedFromSuffix": "" },
+  "footer": { "tagline": "LaTeX collaboration platform for the Nuwax ecosystem", "copyright": "© {{year}}" },
   "completions": {
     "section": "Section", "subsection": "Subsection", "bold": "Bold", "emphasis": "Emphasis", "citation": "Citation",
     "reference": "Cross-reference", "label": "Label", "image": "Image", "unordered": "Unordered list", "ordered": "Ordered list",

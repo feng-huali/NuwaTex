@@ -1,29 +1,99 @@
-# TexLite（Fork）
+# TexLite
 
-本仓库是 [TexLite 上游项目](https://github.com/SWUFE-DB-Group/TexLite) 的 fork，
-fork 仓库地址为 [ChenZhongPu/TexLite](https://github.com/ChenZhongPu/TexLite)。
+TexLite 是女娲（Nuwax）生态中的在线 LaTeX 写作与协作工作台，面向论文、报告和技术文档。
+用户可以通过 Nuwax 账号登录，在浏览器中管理项目、编辑源码、编译和预览 PDF，并邀请协作者共同写作。
 
-本 fork 将 TexLite 从面向私有小团队的部署，调整为支持公网部署和开放注册的平台。
+TexLite 提供写作工作区和编译服务，Nuwax 智能体与自动化应用通过 API 读写项目、触发编译并获取成果，
+将人工编辑、团队协作和 AI 辅助写作连接到同一套项目文件中。平台支持独立部署、开放注册，
+也可以嵌入 Nuwax 或其他应用的页面。
 
-## 本 fork 的改动
+## 核心能力
 
-- **开放用户系统**：接入 Nuwax OAuth，使用 Nuwax 返回的 `sub` 作为稳定的账号关联键；
-  用户名和显示名都支持在个人页面修改，长度上限均为 50。邮箱不是必填项，未返回邮箱的用户也可以正常注册和登录。
-- **项目权限**：注册用户默认可以创建项目。邀请使用 Nuwax 的手机号精确检索，检索结果会显示用户名和显示名；
-  手机号只用于检索，不写入 TexLite。被邀请者必须明确接受后，才会成为项目成员。
-- **项目分享**：项目所有者可以生成和撤销只读链接。只有链接权限的用户必须通过链接打开项目，
-  不会出现在项目列表中，也不能批注或使用 `@` 提及；写权限必须通过明确加入项目获得。撤销链接
-  不会移除已经加入项目的成员。
-- **协作功能**：已加入项目的用户继续支持成员权限、批注、提及和协作者状态展示。
-- **自动化接口**：外部 AI 或 Nuwax 自动化应用可通过沙箱凭证操作项目、读写文件、编译和下载 PDF；TexLite 不再内置 AI 写作调用。
-- **安全调整**：不再支持项目中的 `latexmkrc` 文件。
-- **移除功能**：去掉 Git 集成功能和项目所有权转让功能。
+- **LaTeX 写作**：在线编辑、项目文件管理、PDF 预览和源码与 PDF 双向定位；
+  支持 pdfLaTeX、XeLaTeX 和 LuaLaTeX，编译引擎由管理员配置。
+- **Nuwax 账号**：通过 OAuth 登录并建立账号关联，注册用户默认可以创建项目。
+  用户名和显示名可在个人页面修改，长度上限均为 50；邮箱为可选信息。
+- **团队协作**：支持实时共同编辑、成员权限、批注、`@` 提及和协作者状态展示。
+  按手机号精确检索 Nuwax 用户并发送邀请，被邀请者接受后加入项目；手机号只用于检索，不写入 TexLite。
+- **只读分享**：项目所有者可生成和撤销只读链接。通过链接访问的用户可以查看项目，
+  编辑、批注和提及需要明确加入项目并获得相应权限；撤销链接不会移除已有成员。
+- **智能体与自动化**：Nuwax 自动化应用可使用沙箱凭证管理项目、读写文件、编译和下载 PDF。
+  AI 推理与任务编排由外部平台完成，TexLite 提供受项目权限和配额约束的 API。
+- **部署与集成**：使用 PostgreSQL 保存业务数据，项目文件存储在部署实例中；
+  提供用户配额、反向代理配置和基于来源白名单的 iframe 嵌入支持。
 
-安装、部署和开发配置不在本 README 中重复说明，基础内容请参考
-[上游项目](https://github.com/SWUFE-DB-Group/TexLite)。
+## 快速开始
 
-第三方平台或自动化程序如何通过 API 执行单人论文写作流程，参见
-[论文写作 API 文档](docs/third-party-writing-api.md)。
+### 环境要求
+
+- Node.js 24 或更新版本，以及 npm。
+- 已运行的 PostgreSQL 服务和一个空数据库；数据库用户需具备连接、创建表和修改表结构的权限。
+- LaTeX 工具链（如 TeX Live）和 `latexmk`，相关命令需在 `PATH` 中可用。
+  默认启用 `pdflatex`、`xelatex`、`lualatex`，启动时会检查所有已启用引擎；
+  若只安装部分引擎，请相应设置 `latex.allowedEngines` 和 `latex.defaultEngine`。
+  文档使用参考文献或索引时，还需安装对应的 BibTeX、Biber 或 MakeIndex。
+- 用于账号登录与用户检索的 Nuwax OAuth 应用，登记回调地址和 `user:search` scope。
+
+编译参数由服务端管理，不加载项目中的 `latexmkrc` 文件。
+
+### 源码部署
+
+获取源码、安装依赖并准备配置文件：
+
+```bash
+git clone https://github.com/feng-huali/nuwax-texlite.git
+cd nuwax-texlite
+npm ci
+cp texlite.postgres.config.example.json texlite.config.json
+export TEXLITE_CONFIG="$PWD/texlite.config.json"
+```
+
+编辑 `texlite.config.json`，配置文件存储目录和 Nuwax OAuth 信息，详见下文。
+示例数据库名为 `texlite-demo`，请先在 PostgreSQL 中创建它，并通过环境变量提供真实连接串：
+
+```bash
+export TEXLITE_DATABASE_URL='postgresql://postgres:CHANGE_ME@127.0.0.1:5432/texlite-demo'
+```
+
+将用户名、密码、主机和数据库名替换为实际值。OAuth 回调地址必须与 Nuwax 应用后台登记的地址一致；
+本地按默认端口启动时可使用 `http://localhost:3000/auth/nuwax/callback`。
+
+完成配置后，构建、初始化首个管理员并启动服务：
+
+```bash
+npm run build
+npm run init
+npm start
+```
+
+初始化会自动执行数据库迁移，并提示输入管理员信息。默认访问地址为 `http://localhost:3000`，
+普通用户通过“使用 Nuwax 登录”建立账号。后续启动会自动执行尚未完成的迁移，无需重复初始化管理员。
+公网部署应配置 HTTPS 反向代理；完整初始化、进程管理和升级步骤参见
+[生产部署文档](docs/production-postgresql-deployment.md)。
+
+### 本地开发
+
+完成依赖安装与配置后，首次使用开发环境执行：
+
+```bash
+npm run dev:init
+```
+
+如果所连接的数据库已有有效管理员，可直接启动。在两个终端分别运行：
+
+```bash
+npm run dev
+```
+
+```bash
+npm run dev:web
+```
+
+前端地址为 `http://localhost:5173`，后端端口为 `3001`；开发环境 OAuth 回调可配置为
+`http://localhost:3001/auth/nuwax/callback`。开发脚本固定使用源码目录中的 `texlite.config.json`
+和 `data/`，数据库仍由该配置或 `TEXLITE_DATABASE_URL` 决定，建议使用专门的开发数据库。
+
+提交代码前可运行 `npm run typecheck` 和 `npm test`。PostgreSQL 并发集成测试的配置见下文。
 
 ## Nuwax OAuth 配置
 
@@ -46,8 +116,6 @@ fork 仓库地址为 [ChenZhongPu/TexLite](https://github.com/ChenZhongPu/TexLit
 `profile,user:search`，不是空格分隔。Client Secret 只放在服务端配置或环境变量中，不要提交到 Git。
 项目所有者首次使用手机号邀请前，需要先通过 Nuwax 登录一次，以便服务端取得带有该用户租户上下文的访问令牌。
 
-本地测试不需要保留旧数据；删除 `data` 目录后重新启动即可按当前配置初始化。
-
 ## Nuwax 自动化 API 认证
 
 Nuwax 自动化请求可携带 `Authorization: Bearer <SANDBOX_ACCESS_KEY>`。
@@ -65,12 +133,12 @@ TexLite 用该凭证查询 Nuwax 用户信息接口，将返回的 `id` 对应�
 ```
 
 上述地址也是默认值，可通过 `TEXLITE_SANDBOX_USER_INFO_URL` 覆盖。
-接口范围和完整调用示例参见 [论文写作 API 文档](docs/third-party-writing-api.md)。
+接口范围、论文写作流程和完整调用示例参见 [论文写作 API 文档](docs/third-party-writing-api.md)。
 
 ## PostgreSQL（全新部署）
 
-测试期不需要从 SQLite 导入数据。先在 PostgreSQL 中创建一个空数据库（例如 `texlite-demo`），
-然后以 [texlite.postgres.config.example.json](texlite.postgres.config.example.json) 为基础配置 PostgreSQL；
+先在 PostgreSQL 中创建一个空数据库（例如 `texlite-demo`），
+然后以 [texlite.postgres.config.example.json](texlite.postgres.config.example.json) 为基础配置；
 表结构由 TexLite 的版本化迁移自动创建。
 
 ```json
@@ -99,8 +167,8 @@ postgresql://postgres:CHANGE_ME@127.0.0.1:5432/texlite-demo
 连接串放在 `TEXLITE_DATABASE_URL` 环境变量中，配置文件可保留占位值以说明连接目标。若数据库
 要求 TLS，将 `sslMode` 设为 `require`。
 
-当前 fork 仅支持 PostgreSQL。`drizzle/postgres/` 中的版本化迁移会在应用启动时自动执行；首次部署
-前只需创建空数据库，然后运行 `npm run init` 创建首个管理员。测试阶段不提供旧 SQLite 数据迁移。
+TexLite 使用 PostgreSQL。`drizzle/postgres/` 中的版本化迁移会在初始化和应用启动时自动执行；
+首次部署先创建空数据库，再运行 `npm run init` 创建首个管理员。
 
 可选的 PostgreSQL 并发集成测试使用 `TEXLITE_TEST_DATABASE_URL` 指向一个控制数据库；测试会为
 每个用例创建并删除独立临时数据库，不会写入该控制数据库。该连接账号需具备 `CREATEDB` 权限：
@@ -110,8 +178,8 @@ TEXLITE_TEST_DATABASE_URL='postgresql://postgres:密码@127.0.0.1:5432/postgres'
 ```
 
 `storage.dataDir` 只保存项目文件、编译产物、回收站和实例锁，数据库表由 PostgreSQL 服务管理。
-`npm run dev` 会把配置和文件数据固定在当前源码目录；本地配置中的数据库连接仍指向你配置的
-PostgreSQL 实例。切换数据库时建议使用新的 `dataDir`，避免文件目录与数据库中的项目记录不一致。
+备份时需同时保存数据库和项目文件。切换数据库时建议使用新的 `dataDir`，
+避免文件目录与数据库中的项目记录不一致；开发脚本固定使用的 `data/` 也需与开发数据库对应。
 
 ## 公网部署配额
 
@@ -169,7 +237,7 @@ Caddy 的 `reverse_proxy` 会自动设置安全的 `X-Forwarded-For`、
 详见 [Caddy reverse_proxy 文档](https://caddyserver.com/docs/caddyfile/directives/reverse_proxy)
 和 [Caddy trusted_proxies 文档](https://caddyserver.com/docs/caddyfile/options)。
 
-## 嵌入到其他网站的 iframe
+## 嵌入 Nuwax 或其他网站
 
 默认 Cookie 仅用于第一方访问。若需要让外层网站中的 TexLite iframe 登录，在
 `server.allowedIframeOrigins` 中列出外层页面的精确 **HTTPS origin**：

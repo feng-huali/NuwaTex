@@ -5,11 +5,11 @@
   "license": "AGPL-3.0-only",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/ChenZhongPu/TexLite.git"
+    "url": "git+https://github.com/feng-huali/nuwax-texlite.git"
   },
-  "homepage": "https://github.com/ChenZhongPu/TexLite",
+  "homepage": "https://github.com/feng-huali/nuwax-texlite",
   "bugs": {
-    "url": "https://github.com/ChenZhongPu/TexLite/issues"
+    "url": "https://github.com/feng-huali/nuwax-texlite/issues"
   },
   "keywords": [
     "latex",
