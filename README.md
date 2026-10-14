@@ -11,6 +11,7 @@ NuwaTex 提供写作工作区和编译服务，Nuwax 智能体与自动化应用
 
 - **LaTeX 写作**：在线编辑、项目文件管理、PDF 预览和源码与 PDF 双向定位；
   支持 pdfLaTeX、XeLaTeX 和 LuaLaTeX，编译引擎由管理员配置。
+  编辑器使用 Lezer 增量语法解析，支持基于语法树的补全上下文、缩进和折叠。
 - **Nuwax 账号**：通过 OAuth 登录并建立账号关联，注册用户默认可以创建项目。
   用户名和显示名可在个人页面修改，长度上限均为 50；邮箱为可选信息。
 - **团队协作**：支持实时共同编辑、成员权限、批注、`@` 提及和协作者状态展示。
@@ -99,6 +100,8 @@ npm run dev:web
 和 `data/`，数据库仍由该配置或 `TEXLITE_DATABASE_URL` 决定，建议使用专门的开发数据库。
 
 提交代码前可运行 `npm run typecheck` 和 `npm test`。PostgreSQL 并发集成测试的配置见下文。
+修改 LaTeX 语法后运行 `npm run generate:latex-parser` 更新生成文件；解析器结构与测试说明见
+[LaTeX 语言模块文档](src/client/latex/README.md)。
 
 ## Nuwax OAuth 配置
 

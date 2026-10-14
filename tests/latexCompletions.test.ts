@@ -42,6 +42,28 @@ describe("editor LaTeX completion source", () => {
     expect(complete(source)?.from).toBe(source.lastIndexOf("tw"));
   });
 
+  it.each([
+    String.raw`\bibliography{anthology, cust`,
+    "\\bibliography{anthology,% another database\n  cust"
+  ])("completes only the active bibliography file in %s", (source) => {
+    const result = complete(source, true, {
+      ...index, files: [{ label: "custom", kind: "text", detail: "Project file" }]
+    })!;
+    expect(result.from).toBe(source.lastIndexOf("cust"));
+    expect(result.options.map((item) => item.label)).toContain("custom");
+    expect(source.slice(0, result.from) + "custom").toBe(source.slice(0, -4) + "custom");
+    expect(result.validFor.test("custom, next")).toBe(false);
+    expect(result.validFor.test("custom% comment")).toBe(false);
+    expect(result.validFor.test("custom")).toBe(true);
+  });
+
+  it("retains commas in ordinary file paths", () => {
+    const source = String.raw`\input{first,second`;
+    const result = complete(source)!;
+    expect(result.from).toBe(source.indexOf("first"));
+    expect(result.validFor.test("first,second")).toBe(true);
+  });
+
   it("completes subsequent multicite arguments", () => {
     const source = String.raw`\cites[see]{first}[p. 2]{seco`;
     expect(complete(source)?.from).toBe(source.lastIndexOf("seco"));
@@ -107,6 +129,36 @@ describe("editor LaTeX completion source", () => {
     expect(complete(String.raw`\noind`)?.options.find((entry) => entry.label === "\\noindent")?.detail).toBeUndefined();
   });
 
+  it.each(["includegraphics", "input", "include", "subfile", "bibliography", "addbibresource"])(
+    "preserves file candidates and their source descriptions when completing %s", (command) => {
+      const source = `\\input{chapters/prior.tex}\n\\${command}{fi`;
+      const result = complete(source, true, {
+        ...index,
+        files: [{ label: "figures/result.pdf", kind: "text", detail: "Project file", source: "Project" }]
+      })!;
+      expect(result.options.map((entry) => entry.label)).toEqual(["chapters/prior.tex", "figures/result.pdf"]);
+      expect(result.options.map((entry) => entry.detail)).toEqual([
+        "completions.projectFile · completions.currentFile",
+        "completions.projectFile · completions.project"
+      ]);
+      expect(result.options.every((entry) => entry.type === "text")).toBe(true);
+    }
+  );
+
+  it.each(["figure", "itemize", "equation"])("completes a partially typed end inside a known %s environment", (name) => {
+    const partial = name.slice(0, 3);
+    let state = EditorState.create({ doc: `\\begin{${name}}\nText\n\\end{${partial}}`, extensions: [latexLanguage] });
+    const to = state.doc.length - 1;
+    const result = latexCompletions(new CompletionContext(state, to, false), t, {
+      ...index, environments: [{ label: name, kind: "keyword", detail: "Environment" }]
+    })!;
+    expect(result).not.toBeNull();
+    const option = result.options.find((entry) => entry.label === name)!;
+    const view = { get state() { return state; }, dispatch(spec: TransactionSpec) { state = state.update(spec).state; } } as unknown as EditorView;
+    (option.apply as Exclude<Completion["apply"], string | undefined>)(view, option, result.from, to);
+    expect(state.doc.toString()).toBe(`\\begin{${name}}\nText\n\\end{${name}}`);
+  });
+
   it("does not complete inside literal source, but resumes after an inline percent delimiter", () => {
     expect(complete(String.raw`\begin{lstlisting}
 \noind`)).toBeNull();
@@ -145,5 +197,41 @@ describe("editor LaTeX completion source", () => {
     expect(latexCompletions(new CompletionContext(state, state.doc.length, false), t, index)).toBeNull();
     expect(flatten).not.toHaveBeenCalled();
     flatten.mockRestore();
+  });
+
+  it.each([
+    [String.raw`\includegraphics[width={0.4\textwidth}]{fig`, "figure.png"],
+    ["\\includegraphics[width={0.4\\textwidth}]\n{fig", "figure.png"],
+    ["\\includegraphics[width={0.4\\textwidth}] % note\n  {fig", "figure.png"],
+    [String.raw`\usepackage[opt={x[y]}]{amsmath, ams`, "amssymb"],
+    [String.raw`\documentclass[opt={x[y]}]{arti`, "article"],
+    [String.raw`\begin{fig`, "figure"]
+  ])("preserves candidate sources with structural context in %s", (source, expected) => {
+    expect(complete(source)?.options.map((option) => option.label)).toContain(expected);
+  });
+
+  it.each([String.raw`% comment \noind`, String.raw`\lstinline{\noind`, String.raw`\\noind`])(
+    "does not offer command completions in %s", (source) => {
+      expect(complete(source)).toBeNull();
+    }
+  );
+
+  it("keeps math command completions available", () => {
+    expect(complete(String.raw`$\alph`)?.options.some((option) => option.label === "\\alpha")).toBe(true);
+  });
+
+  it("invalidates cached key suggestions when a TeX comment begins", () => {
+    for (const source of [String.raw`\cite{pap`, String.raw`\ref{fig`, String.raw`\usepackage{ams`]) {
+      const result = complete(source)!;
+      expect(result.validFor.test("word%")).toBe(false);
+    }
+    expect(complete("\\cite{pap% comment")).toBeNull();
+  });
+
+  it("updates cursor classification after editing without carrying an earlier comment context", () => {
+    let state = EditorState.create({ doc: String.raw`% \noind`, extensions: [latexLanguage] });
+    expect(latexCompletions(new CompletionContext(state, state.doc.length, true), t, index)).toBeNull();
+    state = state.update({ changes: { from: 0, to: 2 } }).state;
+    expect(latexCompletions(new CompletionContext(state, state.doc.length, true), t, index)?.options.some((entry) => entry.label === "\\noindent")).toBe(true);
   });
 });

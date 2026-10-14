@@ -2,45 +2,29 @@ import { describe, expect, it } from "vitest";
 import { EditorState } from "@codemirror/state";
 import type { EditorView } from "@codemirror/view";
 import { CompletionContext } from "@codemirror/autocomplete";
-import { defaultHighlightStyle, foldable, matchBrackets, StringStream, syntaxTree } from "@codemirror/language";
+import { defaultHighlightStyle, foldable, matchBrackets, syntaxTree } from "@codemirror/language";
 import { highlightTree, tagHighlighter, tags } from "@lezer/highlight";
 import {
   bibtexCompletionSource,
   bibtexEditorExtensions,
   bibtexLanguage,
   bibtexLinter,
-  latexLanguage,
-  latexStream
+  latexLanguage
 } from "../src/client/latexLanguage";
-import { latexFold, findMatchingLatexEnvironmentEnd } from "../src/client/latexFolding";
+import { findMatchingLatexEnvironmentEnd } from "../src/client/latexFolding";
 import { latexCitationCompletionContext, latexEnvironmentCompletionContext, latexEnvironmentCompletionPlan } from "../src/client/latexCompletionContexts";
 import { hasDocumentClass } from "../src/client/latexRoot";
 import { hasLatexDocumentClass } from "../src/shared/latexRoot";
 import { inlineLatexLiteralEnd } from "../src/client/latexLiterals";
 
 describe("LaTeX syntax handling", () => {
-  it("keeps legacy stex command plugins independent across copied parser states", () => {
-    const tokenize = (line: string, state: ReturnType<NonNullable<typeof latexStream.startState>>) => {
-      const stream = new StringStream(line, 4, 2);
-      const tokens: Array<{ text: string; style: string | null }> = [];
-      while (!stream.eol()) {
-        stream.start = stream.pos;
-        const style = latexStream.token(stream, state);
-        tokens.push({ text: line.slice(stream.start, stream.pos), style });
-      }
-      return tokens;
-    };
-    const original = latexStream.startState!(2);
-    const fresh = latexStream.startState!(2);
-    tokenize(String.raw`\documentclass`, original);
-    tokenize(String.raw`\documentclass`, fresh);
-    const copied = latexStream.copyState!(original);
-    tokenize("[11pt]", copied);
-
-    const resumed = tokenize("[11pt]{article}", original);
-    const expected = tokenize("[11pt]{article}", fresh);
-    expect(resumed).toEqual(expected);
-    expect(resumed.find((token) => token.text === "article")?.style).toBe("atom");
+  it("exposes structured command arguments without mutating earlier editor states", () => {
+    const original = EditorState.create({ doc: String.raw`\documentclass{article}`, extensions: [latexLanguage] });
+    const before = syntaxTree(original).toString();
+    const edited = original.update({ changes: { from: 14, insert: "[11pt]" } }).state;
+    expect(syntaxTree(edited).toString()).toContain("OptionalArgument");
+    expect(syntaxTree(edited).toString()).toContain("DocumentClassArgument");
+    expect(syntaxTree(original).toString()).toBe(before);
   });
 
   it.each([
@@ -165,7 +149,7 @@ Normal prose after a literal environment.`
 \end{verbatim}
 \caption{A real figure}
 \end{figure}`;
-    const state = EditorState.create({ doc: source, extensions: [latexLanguage, latexFold] });
+    const state = EditorState.create({ doc: source, extensions: [latexLanguage] });
     const opening = state.doc.line(1);
     const closing = state.doc.line(7);
     expect(foldable(state, opening.from, opening.to)).toMatchObject({ from: opening.to, to: closing.from });
@@ -230,6 +214,38 @@ Normal prose after a literal environment.`
     const from = source.indexOf("\\begin{ite}") + "\\begin{".length;
     expect(latexEnvironmentCompletionPlan(state.doc, from, from + "ite".length, "itemize"))
       .toMatchObject({ reusesExistingEnd: false, insert: "itemize}\n  \t\n  \\end{itemize}" });
+  });
+
+  it.each(["\\begin\n{fig}", "\\begin% note\n{fig}"])("reuses a multiline environment end for %s", (opening) => {
+    const source = `${opening}\nText\n\\end\n{figure}`;
+    const state = EditorState.create({ doc: source, extensions: [latexLanguage] });
+    const from = source.indexOf("fig");
+    const plan = latexEnvironmentCompletionPlan(state.doc, from, from + 3, "figure");
+    expect(plan).toMatchObject({ insert: "figure}", reusesExistingEnd: true });
+    expect(source.slice(0, from) + plan.insert + source.slice(plan.to)).toBe(`${opening.replace("fig", "figure")}\nText\n\\end\n{figure}`);
+  });
+
+  it("preserves a multiline outer close when completing a nested environment", () => {
+    const source = "\\begin\n{itemize}\n  \\begin\n  {ite}\n\\end\n{itemize}";
+    const state = EditorState.create({ doc: source, extensions: [latexLanguage] });
+    const from = source.indexOf("{ite}") + 1;
+    expect(latexEnvironmentCompletionPlan(state.doc, from, from + 3, "itemize").reusesExistingEnd).toBe(false);
+  });
+
+  it("reuses a multiline close after skipping literal examples and comments", () => {
+    const source = "\\begin\n{fig}\n\\verb|\\end{figure}|\n% \\end{figure}\n\\begin{verbatim}\n\\end{figure}\n\\end{verbatim}\n\\end% close\n{figure}";
+    const state = EditorState.create({ doc: source, extensions: [latexLanguage] });
+    const from = source.indexOf("fig");
+    expect(latexEnvironmentCompletionPlan(state.doc, from, from + 3, "figure")).toMatchObject({ insert: "figure}", reusesExistingEnd: true });
+  });
+
+  it("does not let commented or escaped begin markers claim a real closing command", () => {
+    for (const prefix of ["% \\begin{itemize}\n", "\\\\begin{itemize}\n"]) {
+      const source = prefix + "\\begin\n{ite}\n\\end{itemize}";
+      const state = EditorState.create({ doc: source, extensions: [latexLanguage] });
+      const from = source.indexOf("{ite}") + 1;
+      expect(latexEnvironmentCompletionPlan(state.doc, from, from + 3, "itemize")).toMatchObject({ insert: "itemize}", reusesExistingEnd: true });
+    }
   });
 
   it("parses TeX accent escapes in BibTeX values without losing brace matching", () => {

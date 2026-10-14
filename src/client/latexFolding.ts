@@ -1,6 +1,7 @@
-import type { EditorState, Text } from "@codemirror/state";
-import { foldService } from "@codemirror/language";
+import type { Text } from "@codemirror/state";
 import { inlineLatexLiteralEnd, isLatexLiteralEnvironment, literalEnvironmentEnd } from "./latexLiterals";
+import { maskLatexComments } from "../shared/latexLiterals";
+import { readLatexBalancedArgument, skipLatexTrivia } from "../shared/latexScanner";
 
 interface EnvironmentCommand {
   kind: "begin" | "end";
@@ -9,10 +10,10 @@ interface EnvironmentCommand {
   to: number;
 }
 
-const environmentCommand = /^\\(begin|end)\s*\{\s*([A-Za-z0-9@:_*.\-]+)\s*\}/;
-const incompleteBeginCommand = /\\begin\s*\{\s*[A-Za-z0-9@:_*.\-]*\s*\}?$/;
-const sectionCommand = /^\s*\\(part|chapter|section|subsection|subsubsection)(?![A-Za-z@])\*?/;
-const sectionLevels: Record<string, number> = { part: 0, chapter: 0, section: 1, subsection: 2, subsubsection: 3 };
+const environmentCommand = /^\\(begin|end)(?![A-Za-z@])/;
+const environmentName = /^[A-Za-z0-9@:_*.+\-]+$/;
+const incompleteBeginCommand = /\\begin\s*\{\s*[A-Za-z0-9@:_*.+\-]*\s*\}?$/;
+const environmentLookahead = 8_192;
 
 function isEscaped(source: string, index: number): boolean {
   let backslashes = 0;
@@ -20,47 +21,42 @@ function isEscaped(source: string, index: number): boolean {
   return backslashes % 2 === 1;
 }
 
-function codeEnd(text: string): number {
-  for (let index = 0; index < text.length; index += 1) {
-    if (text[index] === "%" && !isEscaped(text, index)) return index;
+function* environmentCommands(doc: Text, start = 0, literal: { name: string | null } = { name: null }): Generator<EnvironmentCommand> {
+  // Keep line-based literal/comment handling, but allow a real begin/end
+  // argument to cross lines. Only that argument gets bounded lookahead.
+  let position = start;
+  for (let number = doc.lineAt(Math.min(start, doc.length)).number; number <= doc.lines; number++) {
+    const line = doc.line(number);
+    const text = line.text;
+    let cursor = Math.max(0, position - line.from);
+    while (cursor < text.length) {
+      if (literal.name) {
+        const close = literalEnvironmentEnd(text, cursor, literal.name);
+        if (!close) break;
+        yield { kind: "end", name: literal.name, from: line.from + close.from, to: line.from + close.to };
+        literal.name = null;
+        cursor = close.to;
+        continue;
+      }
+      if (text[cursor] === "%" && !isEscaped(text, cursor)) break;
+      if (text[cursor] !== "\\" || isEscaped(text, cursor)) { cursor++; continue; }
+      const literalEnd = inlineLatexLiteralEnd(text, cursor, text.length);
+      if (literalEnd !== null) { cursor = literalEnd; continue; }
+      const match = environmentCommand.exec(text.slice(cursor));
+      if (!match) { cursor++; continue; }
+      const from = line.from + cursor;
+      const tokenEnd = from + match[0].length;
+      const argumentSource = doc.sliceString(tokenEnd, Math.min(doc.length, tokenEnd + environmentLookahead));
+      const argument = readLatexBalancedArgument(argumentSource, skipLatexTrivia(argumentSource, 0), "{", "}");
+      const name = argument && maskLatexComments(argumentSource.slice(argument.contentFrom, argument.contentTo)).trim();
+      if (!argument || !name || !environmentName.test(name)) { cursor += match[0].length; continue; }
+      const to = tokenEnd + argument.to;
+      yield { kind: match[1] as "begin" | "end", name, from, to };
+      if (match[1] === "begin" && isLatexLiteralEnvironment(name)) literal.name = name;
+      cursor = to - line.from;
+    }
+    position = Math.max(line.to + 1, line.from + cursor);
   }
-  return text.length;
-}
-
-function environmentCommands(text: string, start = 0, literal: { name: string | null } = { name: null }): EnvironmentCommand[] {
-  const end = text.length;
-  const commands: EnvironmentCommand[] = [];
-  let cursor = start;
-  while (cursor < end) {
-    if (literal.name) {
-      const close = literalEnvironmentEnd(text, cursor, literal.name);
-      if (!close) break;
-      commands.push({ kind: "end", name: literal.name, from: close.from, to: close.to });
-      literal.name = null;
-      cursor = close.to;
-      continue;
-    }
-    if (text[cursor] === "%" && !isEscaped(text, cursor)) break;
-    if (text[cursor] !== "\\" || isEscaped(text, cursor)) {
-      cursor += 1;
-      continue;
-    }
-    const literalEnd = inlineLatexLiteralEnd(text, cursor, end);
-    if (literalEnd !== null) {
-      cursor = literalEnd;
-      continue;
-    }
-    const match = environmentCommand.exec(text.slice(cursor, end));
-    if (!match) {
-      cursor += 1;
-      continue;
-    }
-    const to = cursor + match[0].length;
-    commands.push({ kind: match[1] as "begin" | "end", name: match[2], from: cursor, to });
-    if (match[1] === "begin" && isLatexLiteralEnvironment(match[2])) literal.name = match[2];
-    cursor = to;
-  }
-  return commands;
 }
 
 /**
@@ -69,53 +65,39 @@ function environmentCommands(text: string, start = 0, literal: { name: string | 
  * that examples in listings do not change structural folding or completion.
  */
 export function findMatchingLatexEnvironmentEnd(doc: Text, from: number, name: string): { from: number; to: number } | null {
-  let line = doc.lineAt(Math.min(from, doc.length));
-  let start = Math.max(0, from - line.from);
   let depth = 1;
   const literal = { name: isLatexLiteralEnvironment(name) ? name : null };
-
-  for (let number = line.number; number <= doc.lines; number += 1) {
-    line = doc.line(number);
-    const commands = environmentCommands(line.text, start, literal);
-    start = 0;
-    for (const command of commands) {
-      if (command.name !== name) continue;
-      if (command.kind === "begin") {
-        depth += 1;
-        continue;
-      }
-      depth -= 1;
-      if (depth === 0) return { from: line.from + command.from, to: line.from + command.to };
+  for (const command of environmentCommands(doc, from, literal)) {
+    if (command.name !== name) continue;
+    if (command.kind === "begin") {
+      depth += 1;
+      continue;
     }
+    depth -= 1;
+    if (depth === 0) return { from: command.from, to: command.to };
   }
   return null;
 }
 
-/** Locate the beginning command currently being completed on the same line. */
+/** Locate a nearby begin command, including trivia on preceding lines. */
 export function latexEnvironmentBeginStart(doc: Text, position: number): number | null {
-  const line = doc.lineAt(Math.min(position, doc.length));
-  const prefix = line.text.slice(0, Math.max(0, position - line.from));
+  const start = Math.max(0, position - environmentLookahead);
+  const prefix = maskLatexComments(doc.sliceString(start, position));
   const match = incompleteBeginCommand.exec(prefix);
-  return match ? line.from + match.index : null;
+  return match && !isEscaped(prefix, match.index) ? start + match.index : null;
 }
 
 function existingEnvironmentOwnsEnd(doc: Text, beginStart: number, endStart: number, name: string): boolean {
   const stack: Array<{ name: string; from: number }> = [];
-  const literal: { name: string | null } = { name: null };
-  for (let number = 1; number <= doc.lines; number += 1) {
-    const line = doc.line(number);
-    const commands = environmentCommands(line.text, 0, literal);
-    for (const command of commands) {
-      const from = line.from + command.from;
-      if (from >= endStart) return stack.at(-1)?.name === name && (stack.at(-1)?.from ?? beginStart) < beginStart;
-      // This is the unfinished command being completed. Its existing spelling
-      // must not make a later end look like an old matching pair.
-      if (from === beginStart && command.kind === "begin") continue;
-      if (command.kind === "begin") {
-        stack.push({ name: command.name, from });
-      } else if (stack.at(-1)?.name === command.name) {
-        stack.pop();
-      }
+  for (const command of environmentCommands(doc)) {
+    if (command.from >= endStart) return stack.at(-1)?.name === name && (stack.at(-1)?.from ?? beginStart) < beginStart;
+    // This is the unfinished command being completed. Its existing spelling
+    // must not make a later end look like an old matching pair.
+    if (command.from === beginStart && command.kind === "begin") continue;
+    if (command.kind === "begin") {
+      stack.push({ name: command.name, from: command.from });
+    } else if (stack.at(-1)?.name === command.name) {
+      stack.pop();
     }
   }
   return false;
@@ -130,34 +112,3 @@ export function findReusableLatexEnvironmentEnd(doc: Text, beginStart: number, a
   if (!end || existingEnvironmentOwnsEnd(doc, beginStart, end.from, name)) return null;
   return end;
 }
-
-function findSectionFold(state: EditorState, lineStart: number): { from: number; to: number } | null {
-  const line = state.doc.lineAt(lineStart);
-  const section = sectionCommand.exec(line.text.slice(0, codeEnd(line.text)));
-  if (!section) return null;
-  const level = sectionLevels[section[1]];
-  const literal: { name: string | null } = { name: null };
-  environmentCommands(line.text, 0, literal);
-
-  for (let number = line.number + 1; number <= state.doc.lines; number += 1) {
-    const candidate = state.doc.line(number);
-    const startedInLiteral = literal.name !== null;
-    environmentCommands(candidate.text, 0, literal);
-    if (startedInLiteral || literal.name) continue;
-    const next = sectionCommand.exec(candidate.text.slice(0, codeEnd(candidate.text)));
-    if (next && sectionLevels[next[1]] <= level) return { from: line.to, to: Math.max(line.to, candidate.from - 1) };
-  }
-  return line.to < state.doc.length ? { from: line.to, to: state.doc.length } : null;
-}
-
-export function findLatexFoldRange(state: EditorState, lineStart: number): { from: number; to: number } | null {
-  const line = state.doc.lineAt(lineStart);
-  const begin = environmentCommands(line.text).find((command) => command.kind === "begin");
-  if (begin) {
-    const end = findMatchingLatexEnvironmentEnd(state.doc, line.from + begin.to, begin.name);
-    if (end && end.from > line.to) return { from: line.to, to: end.from };
-  }
-  return findSectionFold(state, lineStart);
-}
-
-export const latexFold = foldService.of((state, lineStart) => findLatexFoldRange(state, lineStart));

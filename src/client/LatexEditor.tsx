@@ -26,7 +26,6 @@ import { bibtexCompletionSource, bibtexHighlightStyle, bibtexLanguage, bstLangua
 import { supportsLatexMathHover } from "./latexMath";
 import { latexMathHover } from "./mathHover";
 import { latexAutoPairInput, latexSkippedBracePair } from "./latexAutoPairs";
-import { latexFold } from "./latexFolding";
 import { latexCompletions } from "./latexCompletions";
 import { setSourceComments, sourceCommentDecorations, sourceCommentMarksForFile } from "./sourceCommentDecorations";
 import { findLatexReferences, type LatexReference } from "../shared/latexReferences";
@@ -386,7 +385,7 @@ export function LatexEditor({
         foldGutter(), ...(collaboration ? [] : [history()]), drawSelection(), highlightActiveLine(), highlightSpecialChars(),
         isBibtexFile ? [bibtexLanguage, ...createBibtexEditorExtensions(localizedBibtexMessages(t))] : isBstFile ? bstLanguage : latexLanguage, syntaxHighlighting(defaultHighlightStyle),
         ...(isBibtexFile ? [syntaxHighlighting(bibtexHighlightStyle)] : []),
-        ...(isBibtexFile ? [] : [bracketMatching(), ...(isBstFile ? [] : [Prec.high(EditorView.inputHandler.of(latexAutoPairInput)), latexSkippedBracePair, latexFold])]),
+        ...(isBibtexFile ? [] : [bracketMatching(), ...(isBstFile ? [] : [Prec.high(EditorView.inputHandler.of(latexAutoPairInput)), latexSkippedBracePair])]),
         closeBrackets(), indentOnInput(), sourceCommentDecorations({
           label: t("editor.openSourceComment"), onOpen: (id) => onCommentClickRef.current(id)
         }), spellCheckIssueMarks, activeSpellCheckIssueMarks,
