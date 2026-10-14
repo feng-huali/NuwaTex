@@ -11,7 +11,7 @@ import i18n from "../i18n";
 import { loadPdfPreview } from "../workspacePreload";
 import type { CompileCleanMode } from "./useProjectCompilation";
 import type { CompileArtifact, DiagnosticTab, PreviewSurface, PreviewTab, WorkspaceLayout } from "./types";
-import { CompileArtifacts, CompileCleanup, CompileDiagnosticOutput, CompileOutput } from "./CompileOutput";
+import { CompileArtifacts, CompileCleanup, CompileDiagnosticOutput, CompileOutput, formatFileSize } from "./CompileOutput";
 
 const PdfPreview = lazy(() => loadPdfPreview().then((module) => ({ default: module.PdfPreview })));
 
@@ -24,6 +24,7 @@ export interface WorkspacePreviewPanelProps {
   pdfLoadingMode: "full" | "range";
   pdfLoading: boolean;
   pdfCompiledAt: string | null;
+  pdfSizeBytes: number | null;
   pdfCompiledLabel: string;
   pdfTargetLabel: string;
   pdfDownloadUrl: string;
@@ -59,7 +60,7 @@ export interface WorkspacePreviewPanelProps {
 }
 
 export function WorkspacePreviewPanel({
-  projectId, activeMainFile, previewTab, diagnosticTab, pdfUrl, pdfLoadingMode, pdfLoading, pdfCompiledAt,
+  projectId, activeMainFile, previewTab, diagnosticTab, pdfUrl, pdfLoadingMode, pdfLoading, pdfCompiledAt, pdfSizeBytes,
   pdfCompiledLabel, pdfTargetLabel, pdfDownloadUrl, pdfTarget, pdfViewport, activeFile, compileBusy, compileLog,
   compileDiagnostics, compileMessages, artifacts, artifactPreview, artifactLoading, cleaning, readOnly,
   collaborationSynced, workspaceLayout, showSyncResize, diagnosticCount, selectPreviewTab, changeWorkspaceLayout,
@@ -67,13 +68,19 @@ export function WorkspacePreviewPanel({
   files, jumpToSource, onSetCleanMode, cleanCompile, viewArtifact
 }: WorkspacePreviewPanelProps) {
   const { t } = useTranslation();
+  const pdfSizeLabel = pdfUrl && typeof pdfSizeBytes === "number" && Number.isFinite(pdfSizeBytes) && pdfSizeBytes >= 0
+    ? formatFileSize(pdfSizeBytes) : "";
+  const pdfMetadataLabel = [pdfSizeLabel, pdfCompiledLabel].filter(Boolean).join(" · ");
+  const pdfTabTitle = pdfCompiledAt
+    ? t("editor.pdfCompiledAtFor", { file: activeMainFile, time: new Date(pdfCompiledAt).toLocaleString(i18n.resolvedLanguage) })
+    : t("editor.currentMainDocument", { path: activeMainFile });
   return <>
     {showSyncResize && <PanelResizeHandle className="resize-handle sync-resize-handle"><GripVertical className="resize-grip" size={12} /><span className="sync-direction-buttons" onPointerDown={(event) => event.stopPropagation()}><button disabled={!pdfViewport || !canSyncWithPdf} title={canSyncWithPdf ? t("editor.showInSource") : t("editor.syncTexOnlyForMain")} aria-label={t("editor.showInSource")} onClick={() => { if (!canSyncWithPdf) { onSetNotice(t("editor.syncTexOnlyForMain")); return; } syncVisiblePdfToSource(); }}><span aria-hidden>←</span></button><button disabled={!activeFile || !pdfUrl || !canSyncWithPdf} title={canSyncWithPdf ? t("editor.showInPdf") : t("editor.syncTexOnlyForMain")} aria-label={t("editor.showInPdf")} onClick={() => { if (!canSyncWithPdf) { onSetNotice(t("editor.syncTexOnlyForMain")); return; } void syncCurrentSourceToPdf(); }}><span aria-hidden>→</span></button></span></PanelResizeHandle>}
     <Panel id="preview" order={3} defaultSize={42} minSize={22}>
       <section className="preview-panel">
         <div className="preview-tabs">
           <div className="preview-tab-list" role="tablist" aria-label={t("editor.outputTabs")}>
-            <button role="tab" aria-selected={previewTab === "pdf"} className={`pdf-tab${previewTab === "pdf" ? " active" : ""}`} onClick={() => selectPreviewTab("pdf")} title={pdfCompiledAt ? t("editor.pdfCompiledAtFor", { file: activeMainFile, time: new Date(pdfCompiledAt).toLocaleString(i18n.resolvedLanguage) }) : t("editor.currentMainDocument", { path: activeMainFile })}><img className="pdf-tab-icon" src={appPath("/pdf-download.svg")} alt="" aria-hidden="true" /><span className="pdf-tab-label">PDF · {pdfTargetLabel}{pdfCompiledLabel && <small>{pdfCompiledLabel}</small>}</span></button>
+            <button role="tab" aria-selected={previewTab === "pdf"} className={`pdf-tab${previewTab === "pdf" ? " active" : ""}`} onClick={() => selectPreviewTab("pdf")} title={[pdfTabTitle, pdfSizeLabel].filter(Boolean).join(" · ")}><img className="pdf-tab-icon" src={appPath("/pdf-download.svg")} alt="" aria-hidden="true" /><span className="pdf-tab-label">PDF · {pdfTargetLabel}{pdfMetadataLabel && <small>{pdfMetadataLabel}</small>}</span></button>
             <button role="tab" aria-selected={previewTab === "diagnostics"} className={`diagnostics-tab${previewTab === "diagnostics" ? " active" : ""}`} onClick={() => selectPreviewTab("diagnostics")}><ScrollText size={14} />{t("editor.outputTabs")}<span>{diagnosticCount}</span></button>
           </div>
           {pdfDownloadUrl && <a className="pdf-download-top" href={pdfDownloadUrl} download title={t("editor.downloadPdf")} aria-label={t("editor.downloadPdf")}><Download size={15} /><span>{t("editor.downloadPdf")}</span></a>}

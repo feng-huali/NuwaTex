@@ -89,6 +89,7 @@ export function useProjectCompilation({
   const [pdfUrl, setPdfUrl] = useState("");
   const [pdfLoading, setPdfLoading] = useState(true);
   const [pdfCompiledAt, setPdfCompiledAt] = useState<string | null>(null);
+  const [pdfSizeBytes, setPdfSizeBytes] = useState<number | null>(null);
   const [pdfLoadingMode, setPdfLoadingMode] = useState<"full" | "range">("full");
   const [compileLog, setCompileLog] = useState("");
   const [compileDiagnostics, setCompileDiagnostics] = useState<CompileDiagnostics | null>(null);
@@ -184,6 +185,7 @@ export function useProjectCompilation({
       setPdfLoading(false);
       setPdfUrl("");
       setPdfCompiledAt(null);
+      setPdfSizeBytes(null);
       setPdfLoadingMode("full");
       setCompileLog("");
       setCompileDiagnostics(null);
@@ -209,6 +211,7 @@ export function useProjectCompilation({
       pdfMainFileRef.current = "";
       setPdfUrl("");
       setPdfCompiledAt(null);
+      setPdfSizeBytes(null);
       setPdfLoadingMode("full");
       setPdfLoading(false);
       setArtifacts([]);
@@ -227,6 +230,7 @@ export function useProjectCompilation({
     if (!retainPdf) {
       setPdfUrl("");
       setPdfCompiledAt(null);
+      setPdfSizeBytes(null);
       setPdfLoadingMode("full");
     }
     setArtifacts([]);
@@ -287,6 +291,7 @@ export function useProjectCompilation({
         pdfMainFileRef.current = latest.mainFile;
         setPdfUrl(latest.pdfUrl);
         setPdfCompiledAt(latest.pdfCompiledAt);
+        setPdfSizeBytes(latest.pdfSizeBytes ?? null);
         setPdfLoadingMode(latest.pdfLoadingMode ?? "full");
         callbacks.current.onPreviewTab("pdf");
       }
@@ -323,6 +328,7 @@ export function useProjectCompilation({
       setCompileOutcome(null);
       setPdfUrl("");
       setPdfCompiledAt(null);
+      setPdfSizeBytes(null);
       setPdfLoadingMode("full");
       setArtifacts([]);
       setArtifactPreview(null);
@@ -376,6 +382,7 @@ export function useProjectCompilation({
         callbacks.current.onPdfChanged();
         setPdfUrl(latest.pdfUrl);
         setPdfCompiledAt(latest.pdfCompiledAt);
+        setPdfSizeBytes(latest.pdfSizeBytes ?? null);
         setPdfLoadingMode(latest.pdfLoadingMode ?? "full");
         callbacks.current.onPreviewTab("pdf");
         focusPdfAfterCompile(sharedState.runId);
@@ -434,6 +441,7 @@ export function useProjectCompilation({
         callbacks.current.onPdfChanged();
         setPdfUrl(result.pdfUrl);
         setPdfCompiledAt(result.pdfCompiledAt);
+        setPdfSizeBytes(result.pdfSizeBytes ?? null);
         setPdfLoadingMode(result.pdfLoadingMode ?? "full");
         callbacks.current.onPreviewTab("pdf");
         if (result.ok) {
@@ -519,6 +527,7 @@ export function useProjectCompilation({
         setCompileOutcome(null);
         setPdfUrl("");
         setPdfCompiledAt(null);
+        setPdfSizeBytes(null);
         setPdfLoadingMode("full");
         setArtifacts([]);
         setArtifactPreview(null);
@@ -594,6 +603,7 @@ export function useProjectCompilation({
   return {
     pdfUrl: selectionVisible ? pdfUrl : "",
     pdfCompiledAt: selectionVisible ? pdfCompiledAt : null,
+    pdfSizeBytes: selectionVisible ? pdfSizeBytes : null,
     pdfLoadingMode,
     pdfLoading: selectionVisible ? pdfLoading : false,
     compileLog: selectionVisible ? compileLog : "",
