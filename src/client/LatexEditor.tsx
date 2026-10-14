@@ -4,7 +4,7 @@ import type { TFunction } from "i18next";
 import { Annotation, Compartment, EditorState, Facet, Prec, RangeSet, type Range, StateEffect, StateField, Transaction } from "@codemirror/state";
 import {
   Decoration, type DecorationSet, EditorView, GutterMarker, keymap, lineNumberMarkers, lineNumbers,
-  highlightActiveLine, drawSelection, highlightSpecialChars, ViewPlugin, type ViewUpdate
+  highlightActiveLine, highlightActiveLineGutter, drawSelection, highlightSpecialChars, ViewPlugin, type ViewUpdate
 } from "@codemirror/view";
 import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
 import {
@@ -24,7 +24,9 @@ import { editorFontStack, type EditorPreferences } from "./editorPreferences";
 import { countSearchMatches, searchQuerySignature } from "./editorSearch";
 import { bibtexCompletionSource, bibtexHighlightStyle, bibtexLanguage, bstLanguage, createBibtexEditorExtensions, latexLanguage, localizedBibtexMessages } from "./latexLanguage";
 import { supportsLatexMathHover } from "./latexMath";
+import { latexHighlightStyle, latexSemanticHighlighting } from "./latex/highlighting";
 import { latexMathHover } from "./mathHover";
+import { latexReferenceHover } from "./latexReferenceHover";
 import { latexAutoPairInput, latexSkippedBracePair } from "./latexAutoPairs";
 import { latexCompletions } from "./latexCompletions";
 import { setSourceComments, sourceCommentDecorations, sourceCommentMarksForFile } from "./sourceCommentDecorations";
@@ -382,15 +384,16 @@ export function LatexEditor({
           t("editor.addComment"),
           (...args) => onAddCommentRef.current(...args)
         ),
-        foldGutter(), ...(collaboration ? [] : [history()]), drawSelection(), highlightActiveLine(), highlightSpecialChars(),
-        isBibtexFile ? [bibtexLanguage, ...createBibtexEditorExtensions(localizedBibtexMessages(t))] : isBstFile ? bstLanguage : latexLanguage, syntaxHighlighting(defaultHighlightStyle),
+        foldGutter(), ...(collaboration ? [] : [history()]), drawSelection(), highlightActiveLine(), highlightActiveLineGutter(), highlightSpecialChars(),
+        isBibtexFile ? [bibtexLanguage, ...createBibtexEditorExtensions(localizedBibtexMessages(t))] : isBstFile ? bstLanguage : latexLanguage,
+        ...(isBibtexFile || isBstFile ? [syntaxHighlighting(defaultHighlightStyle)] : [syntaxHighlighting(latexHighlightStyle), latexSemanticHighlighting]),
         ...(isBibtexFile ? [syntaxHighlighting(bibtexHighlightStyle)] : []),
         ...(isBibtexFile ? [] : [bracketMatching(), ...(isBstFile ? [] : [Prec.high(EditorView.inputHandler.of(latexAutoPairInput)), latexSkippedBracePair])]),
         closeBrackets(), indentOnInput(), sourceCommentDecorations({
           label: t("editor.openSourceComment"), onOpen: (id) => onCommentClickRef.current(id)
         }), spellCheckIssueMarks, activeSpellCheckIssueMarks,
         referenceNavigation.current.of(isBstFile ? [] : referenceNavigationSettings.of(referenceNavigationOptions(filePath, t))),
-        ...(isBstFile ? [] : [latexReferenceMarks]),
+        ...(isBstFile ? [] : [latexReferenceMarks, latexReferenceHover]),
         mathHover.current.of(preferences.mathPreviewOnHover && supportsLatexMathHover(filePath) ? latexMathHover({
           loading: t("editor.mathPreviewLoading"), unavailable: t("editor.mathPreviewUnavailable"), preview: t("editor.mathPreview")
         }) : []),
@@ -416,15 +419,6 @@ export function LatexEditor({
             event.preventDefault();
             onReferenceNavigateRef.current(reference);
             return true;
-          },
-          mousemove(event, editor) {
-            const reference = referenceFromElement(event.target);
-            editor.dom.classList.toggle("cm-reference-navigation-active", Boolean(reference && (event.ctrlKey || event.metaKey)));
-            return false;
-          },
-          mouseleave(_event, editor) {
-            editor.dom.classList.remove("cm-reference-navigation-active");
-            return false;
           },
           contextmenu(event) {
             const element = (event.target as HTMLElement).closest<HTMLElement>("[data-spell-error]");

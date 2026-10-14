@@ -3,6 +3,7 @@ import type { EditorState } from "@codemirror/state";
 import type { SyntaxNode } from "@lezer/common";
 import { styleTags, tags } from "@lezer/highlight";
 import { parser } from "./latex.mjs";
+import { latexHighlightTags } from "./highlighting";
 import { latexIndentation } from "./indentation";
 
 function sectionFold(node: SyntaxNode, state: EditorState) {
@@ -64,24 +65,22 @@ export const latexLanguage = LRLanguage.define({
       $Environment: environmentFold,
       $Section: sectionFold
     }),
-    // Standard CodeMirror tags keep the default highlighter usable.
-    // A separate palette can refine these semantics after parser integration.
     styleTags({
       [commandTokens]: tags.tagName,
       [symbolTokens]: tags.escape,
-      [environmentTokens]: tags.attributeValue,
+      [environmentTokens]: latexHighlightTags.environment,
       "CtrlSeq Csname": tags.tagName,
       [[...structuralTokens].join(" ")]: tags.keyword,
-      "SectioningArgument/...": tags.heading,
+      "SectioningArgument/...": latexHighlightTags.heading,
       "OpenBrace CloseBrace": tags.brace,
       "OpenBracket CloseBracket": tags.squareBracket,
-      [[...mathDelimiterTokens].join(" ")]: tags.string,
-      MathDelimiter: tags.string,
+      [[...mathDelimiterTokens].join(" ")]: latexHighlightTags.mathDelimiter,
+      MathDelimiter: latexHighlightTags.mathDelimiter,
       "Tilde Ampersand LineBreakCtrlSym MacroParameter": tags.escape,
       Comment: tags.comment,
-      "VerbContent VerbatimContent LstInlineContent": tags.string,
+      "VerbContent VerbatimContent LstInlineContent": latexHighlightTags.literal,
       "NewCommand/LiteralArgContent RenewCommand/LiteralArgContent": tags.tagName,
-      "NewEnvironment/LiteralArgContent RenewEnvironment/LiteralArgContent": tags.attributeValue,
+      "NewEnvironment/LiteralArgContent RenewEnvironment/LiteralArgContent": latexHighlightTags.environment,
       "LabelArgument/ShortTextArgument/ShortArg/... RefArgument/ShortTextArgument/ShortArg/... BibKeyArgument/ShortTextArgument/ShortArg/...": tags.attributeValue,
       "UrlArgument/LiteralArgContent": tags.url,
       "DocumentClassArgument/ShortTextArgument/ShortArg/...": tags.typeName,

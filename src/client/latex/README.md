@@ -10,8 +10,16 @@ for provenance and the AGPL-3.0 license notice.
   `npm run generate:latex-parser` after editing the grammar. Web development,
   web builds and tests regenerate them automatically.
 - `index.ts` integrates the parser with CodeMirror, including standard
-  highlight tags and structural folding. Folding requires real matching
+  semantic highlight tags and structural folding. Folding requires real matching
   environment closes and preserves multiline headings and opening names.
+- `highlighting.ts` supplies a dedicated LaTeX palette and viewport-scoped
+  syntax-tree decorations. Commands use blue, structural commands and
+  environment names use teal, mathematical commands use purple, and reference
+  keys use ochre. Brackets and comments share gray; comments remain upright.
+  Real matching environment markers are accented at the caret, and TODO/FIXME
+  tokens are emphasized inside comments. This layer does not force parsing or
+  flatten whole documents. Palette colors live in `styles.css` as `--tl-*`
+  variables, including selection, search, pairing and writing diagnostics.
 - `indentation.ts` aligns environments, groups and display math, keeps the
   document body at its margin, and preserves raw literal indentation.
 - `context.ts` queries cursor-local regions and argument ownership for
@@ -30,11 +38,15 @@ and auto-pair end reuse; editor folds use the syntax tree.
 Project indexes, reference navigation, math previews, formatting and writing
 diagnostics remain separate. This parser does not expand macros, decide whether
 a document compiles, or expose recovery nodes as compile diagnostics.
+Reference hover styles apply only to the pointed-at key while Ctrl/Cmd is held;
+pressing or releasing the modifier updates the style without mouse movement.
+BibTeX and BST retain their language-specific syntax styles.
 
 Run the parser regressions with:
 
 ```sh
 npm test -- tests/latexParser.test.ts tests/latexContext.test.ts tests/latexSyntax.test.ts tests/latexCompletions.test.ts tests/latexIndentation.test.ts
+npm test -- tests/latexHighlighting.test.ts tests/editorPalette.test.ts
 ```
 
 Incremental tests compare fresh and `TreeFragment`-reused trees after insertions
